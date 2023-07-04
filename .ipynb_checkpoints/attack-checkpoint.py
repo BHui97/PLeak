@@ -3,8 +3,6 @@ import torch
 import numpy as np
 from copy import deepcopy
 import re
-from nltk import pos_tag, word_tokenize
-import nltk
 
 class HotFlip:
     def __init__(self, trigger_token_length=6, target_model='gpt2'):
@@ -24,10 +22,9 @@ class HotFlip:
             self.vocab_size = 50272
         self.embedding_weight = self.get_embedding_weight()
         self.add_hook()
+        self.split_symbol = self.tokenizer.encode(';')[-1]
         self.trigger_tokens = np.random.randint(self.vocab_size, size=trigger_token_length)
-        self.prefix = ':'
-        # self.split_symbol = self.tokenizer.encode('.')[-1]
-        # self.trigger_tokens = np.insert(self.trigger_tokens, 0, self.split_symbol)
+        self.trigger_tokens = np.insert(self.trigger_tokens, 0, self.split_symbol)
 
     def add_hook(self):
         for module in self.model.modules():
@@ -50,14 +47,10 @@ class HotFlip:
         encoded_labels = []
         max_len = 0
         for target_text in target_texts:
-            len_prefix = len(self.tokenizer.encode(":"))
-            target_text = self.prefix +  target_text
+            # target_text = "sentence: " +  target_text
             encoded_target_text = self.tokenizer.encode(target_text)
-            encoded_text = encoded_target_text + triggers.tolist() + encoded_target_text
-            encoded_text.append(triggers.tolist()[0])
-            encoded_label = [-100]*(len(encoded_target_text)+triggers.shape[0] + len_prefix) + encoded_target_text[len_prefix:]
-            encoded_label.append(triggers.tolist()[0])
-            import ipdb;ipdb.set_trace()
+            encoded_text = encoded_target_text + triggers.tolist() + self.tokenizer.encode('sentence: ') + encoded_target_text
+            encoded_label = [-100]*(len(encoded_target_text)+triggers.shape[0]+len(self.tokenizer.encode('sentence: '))) + encoded_target_text 
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:
@@ -94,7 +87,7 @@ class HotFlip:
         print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
         while token_last_change < self.trigger_tokens.shape[0]:
             for i, token_to_flip in enumerate(self.trigger_tokens):
-                # if i == 0: continue
+                if i == 0: continue
                 token_flipped = False
                 #Find Candidates for this token
                 self.model.zero_grad()
@@ -113,8 +106,6 @@ class HotFlip:
                 # Use hotflip (linear approximation) attack to get the top num_candidates
                 candidates = self.hotflip_attack(averaged_grad, [token_to_flip], num_candidates=100)[0]
                 for cand in candidates:
-                    if re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(cand)):
-                        continue
                     candidate_trigger_tokens = deepcopy(self.trigger_tokens)
                     candidate_trigger_tokens[i] = cand
 
@@ -138,10 +129,8 @@ class HotFlip:
         results = []
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
         for target_text in target_texts:
-            text = self.prefix + target_text + triggers + self.prefix
-            # prefix = 'sentence:'
-            # text = prefix + target_text + triggers + prefix
-            # text = target_text + triggers
+            # text = 'sentence: ' + target_text + triggers + 'sentence:'
+            text = target_text + triggers + 'sentence:'
             target_tokens = torch.tensor([self.tokenizer.encode(text)], device=self.device, dtype=torch.long)
             # target_length = target_tokens.shape[1]
             target_length = len(self.tokenizer.encode(target_text))+self.trigger_tokens.shape[0]
@@ -154,34 +143,14 @@ class HotFlip:
                     log_probs = torch.nn.functional.softmax(logits, dim=-1)
                     pred = torch.argmax(log_probs, keepdim=True)
                     target_tokens = torch.cat((target_tokens, pred), dim=1)
-                    if pred.item() == self.trigger_tokens[0]:
-                    # if pred.item() == 50256:
+                    if pred.item() == self.split_symbol:
                         break
                     generated_tokens.append(pred.item())
                 generated_sent = self.tokenizer.decode(generated_tokens)
-                results.append({'context': target_text, 'generation':generated_sent})
-        self.evaluate(results)
-        import ipdb;ipdb.set_trace()
+                target_char = re.sub('[^a-zA-Z]', '',target_text)
+                gen_char = re.sub('[^a-zA-Z]', '', generated_sent)
+                # import ipdb;ipdb.set_trace()
+
+                results.append({'context': text, 'generation':generated_sent})
         return results
-
-    def sentence_to_tokens(self, sentence):
-        ret_tokens = [word for word, pos in pos_tag(word_tokenize(sentence)) 
-                    if pos.startswith('N') or pos.startswith('J') or pos.startswith('V')]
-        return ret_tokens
-
-    def sentence_to_char(self, sentence):
-        ret_chars = re.sub('[^a-zA-Z]', '', sentence)
-        return ret_chars
-
-    def evaluate(self, results, level='char'):
-        count = 0
-        for result in results:
-            if level == 'char':
-                target = self.sentence_to_char(result['context'])
-                pred = self.sentence_to_char(result['generation'])
-            if pred == target: count += 1
-
-        print(count/len(results))
-
-
 

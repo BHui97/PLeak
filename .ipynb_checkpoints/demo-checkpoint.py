@@ -28,7 +28,7 @@ def attack_finacial_data(target_model):
     save_to_csv(target_path, results)
 
 train_num = 16
-test_num = 1000
+test_num = 100
 dataset = load_dataset("financial_phrasebank","sentences_allagree")
 trainset = random.choices(dataset["train"]["sentence"], k=train_num)
 testset = random.choices(dataset["train"]["sentence"], k=test_num)
@@ -46,4 +46,4 @@ testset = random.choices(dataset["train"]["sentence"], k=test_num)
 # print(results)
 # target_path = f'results/{datetime.now().strftime("%Y_%m_%d-%I_%M")}_{target_model}_{shadow_model}.csv'
 # save_to_csv(target_path, results)
-attack_finacial_data('opt')
+attack_finacial_data('gpt2')
