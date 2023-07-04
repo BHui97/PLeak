@@ -51,13 +51,15 @@ class HotFlip:
         max_len = 0
         for target_text in target_texts:
             len_prefix = len(self.tokenizer.encode(":"))
+            if self.target_model == 'opt': len_prefix -= 1
             target_text = self.prefix +  target_text
             encoded_target_text = self.tokenizer.encode(target_text)
-            encoded_text = encoded_target_text + triggers.tolist() + encoded_target_text
+            if self.target_model == 'opt':encoded_target = encoded_target_text[1:]
+            else: encoded_target = encoded_target_text
+            encoded_text = encoded_target_text + triggers.tolist() + encoded_target
             encoded_text.append(triggers.tolist()[0])
-            encoded_label = [-100]*(len(encoded_target_text)+triggers.shape[0] + len_prefix) + encoded_target_text[len_prefix:]
+            encoded_label = [-100]*(len(encoded_target_text)+triggers.shape[0] + len_prefix) + encoded_target[len_prefix:]
             encoded_label.append(triggers.tolist()[0])
-            import ipdb;ipdb.set_trace()
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:

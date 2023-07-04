@@ -46,4 +46,4 @@ testset = random.choices(dataset["train"]["sentence"], k=test_num)
 # print(results)
 # target_path = f'results/{datetime.now().strftime("%Y_%m_%d-%I_%M")}_{target_model}_{shadow_model}.csv'
 # save_to_csv(target_path, results)
-attack_finacial_data('opt')
+attack_finacial_data('gpt2')
