@@ -25,9 +25,7 @@ class HotFlip:
         self.embedding_weight = self.get_embedding_weight()
         self.add_hook()
         self.trigger_tokens = np.random.randint(self.vocab_size, size=trigger_token_length)
-        self.prefix = ':'
-        # self.split_symbol = self.tokenizer.encode('.')[-1]
-        # self.trigger_tokens = np.insert(self.trigger_tokens, 0, self.split_symbol)
+        self.prefix = 'sentence:'
 
     def add_hook(self):
         for module in self.model.modules():
@@ -50,11 +48,11 @@ class HotFlip:
         encoded_labels = []
         max_len = 0
         for target_text in target_texts:
-            len_prefix = len(self.tokenizer.encode(":"))
+            len_prefix = len(self.tokenizer.encode(self.prefix))
             if self.target_model == 'opt': len_prefix -= 1
             target_text = self.prefix +  target_text
             encoded_target_text = self.tokenizer.encode(target_text)
-            if self.target_model == 'opt':encoded_target = encoded_target_text[1:]
+            if self.target_model == 'opt': encoded_target = encoded_target_text[1:]
             else: encoded_target = encoded_target_text
             encoded_text = encoded_target_text + triggers.tolist() + encoded_target
             encoded_text.append(triggers.tolist()[0])
@@ -139,13 +137,12 @@ class HotFlip:
     def sample_sequence(self, target_texts, triggers=None, length=100):
         results = []
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
+        first_trigger_tokens = self.sentence_to_char(self.sentence_to_tokens(triggers)[0])
         for target_text in target_texts:
-            text = self.prefix + target_text + triggers + self.prefix
-            # prefix = 'sentence:'
-            # text = prefix + target_text + triggers + prefix
-            # text = target_text + triggers
+            # text = self.prefix + target_text + triggers + self.prefix
+            prefix = 'input:'
+            text = prefix + target_text + triggers + prefix
             target_tokens = torch.tensor([self.tokenizer.encode(text)], device=self.device, dtype=torch.long)
-            # target_length = target_tokens.shape[1]
             target_length = len(self.tokenizer.encode(target_text))+self.trigger_tokens.shape[0]
             past = None
             with torch.no_grad():
@@ -156,32 +153,40 @@ class HotFlip:
                     log_probs = torch.nn.functional.softmax(logits, dim=-1)
                     pred = torch.argmax(log_probs, keepdim=True)
                     target_tokens = torch.cat((target_tokens, pred), dim=1)
-                    if pred.item() == self.trigger_tokens[0]:
-                    # if pred.item() == 50256:
+                    pred_token = self.sentence_to_char(self.tokenizer.decode(pred.item()))
+                    if pred_token[:4] == first_trigger_tokens[:4]:
+                        break
+                    if '\n' in self.tokenizer.decode(pred.item()):
                         break
                     generated_tokens.append(pred.item())
                 generated_sent = self.tokenizer.decode(generated_tokens)
                 results.append({'context': target_text, 'generation':generated_sent})
         self.evaluate(results)
-        import ipdb;ipdb.set_trace()
+        # import ipdb;ipdb.set_trace()
         return results
 
     def sentence_to_tokens(self, sentence):
-        ret_tokens = [word for word, pos in pos_tag(word_tokenize(sentence)) 
-                    if pos.startswith('N') or pos.startswith('J') or pos.startswith('V')]
+        ret_tokens = [word for word, pos in pos_tag(word_tokenize(sentence), tagset='universal') if pos.startswith('N') or pos.startswith('A') or pos.startswith('V') or pos.startswith('X')]
         return ret_tokens
 
     def sentence_to_char(self, sentence):
-        ret_chars = re.sub('[^a-zA-Z]', '', sentence)
+        ret_chars = re.sub('[^a-zA-Z]', '', sentence.lower())
         return ret_chars
+    
+    def filter_tokens(self, sentence):
+        ret_sentence = re.sub('[^a-zA-Z]', ' ', sentence.lower())
+        filtered_sentence = ''.join(self.sentence_to_tokens(ret_sentence))
+
+        return filtered_sentence
 
     def evaluate(self, results, level='char'):
         count = 0
         for result in results:
             if level == 'char':
-                target = self.sentence_to_char(result['context'])
-                pred = self.sentence_to_char(result['generation'])
+                target = self.filter_tokens(result['context'])
+                pred = self.filter_tokens(result['generation'])
             if pred == target: count += 1
+            else: import ipdb;ipdb.set_trace()
 
         print(count/len(results))
 
