@@ -1,4 +1,4 @@
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, AutoTokenizer, OPTForCausalLM, GPTJForCausalLM
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, AutoTokenizer, OPTForCausalLM, GPTJForCausalLM, AutoModelForCausalLM
 import torch
 import numpy as np
 from copy import deepcopy
@@ -8,26 +8,36 @@ import nltk
 from torchmetrics import ExtendedEditDistance, CatMetric
 
 class HotFlip:
-    def __init__(self, trigger_token_length=6, target_model='gpt2', prefix_1='input', prefix_2='output'):
+    def __init__(self, trigger_token_length=6, target_model='gpt2', context_prefix='context:', trigger_prefix='input:'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
-        if target_model == 'gpt2':
-            self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-            self.model = GPT2LMHeadModel.from_pretrained('gpt2').eval().to(self.device)
-            self.vocab_size = 50257
-        elif target_model == 'gptj':
+        if target_model == 'gptj':
             self.tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-j-6B")
-            self.model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B").eval().to(self.device)
-            self.vocab_size=50257
+            self.model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", device_map="auto", load_in_4bit=True).eval()
+            self.vocab_size=50400
         elif target_model == 'opt':
-            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-350m")
-            self.model = OPTForCausalLM.from_pretrained("facebook/opt-350m").eval().to(self.device)
+            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-1.3b")
+            self.model = OPTForCausalLM.from_pretrained("facebook/opt-1.3b", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size = 50272
+        elif target_model == 'falcon':
+            self.tokenizer = AutoTokenizer.from_pretrained("tiiuae/falcon-7b-instruct")
+            self.model = AutoModelForCausalLM.from_pretrained("tiiuae/falcon-7b-instruct", device_map="auto", load_in_4bit=True, trust_remote_code=True).eval()
+            self.vocab_size = 65024
+
         self.embedding_weight = self.get_embedding_weight()
         self.add_hook()
-        self.trigger_tokens = np.random.randint(self.vocab_size, size=trigger_token_length)
-        self.prefix_1 = prefix_1
-        self.prefix_2 = prefix_2
+        self.trigger_tokens = self.init_triggers(trigger_token_length)
+        self.context_prefix = context_prefix
+        self.trigger_prefix = trigger_prefix
+
+    def init_triggers(self, trigger_token_length):
+        triggers = np.empty(trigger_token_length, dtype=int)
+        for idx, t in enumerate(triggers):
+            t = np.random.randint(self.vocab_size)
+            while re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(t)):
+                t = np.random.randint(self.vocab_size)
+            triggers[idx] = t
+        return triggers
 
     def add_hook(self):
         for module in self.model.modules():
@@ -51,26 +61,31 @@ class HotFlip:
         max_len = 0
         for target_text in target_texts:
             encoded_target_text = self.tokenizer.encode(target_text)
-            encoded_prefix_1 = self.tokenizer.encode(self.prefix_1)
+            encoded_trigger_prefix = self.tokenizer.encode(self.trigger_prefix)
             encoded_splash_n = self.tokenizer.encode('\n')
             if self.target_model == 'opt': 
                 encoded_target = encoded_target_text[1:]
-                encoded_prefix_1 = encoded_prefix_1[1:]
+                encoded_trigger_prefix = encoded_trigger_prefix[1:]
                 encoded_splash_n = encoded_splash_n[1:]
             else: encoded_target = encoded_target_text
-            encoded_text = encoded_target_text + encoded_prefix_1 + triggers.tolist() + encoded_splash_n + encoded_target
-            len_non_label = len(encoded_target_text)+len(encoded_prefix_1) + triggers.shape[0] + len(encoded_splash_n)
-            encoded_label = [-100]*len_non_label + encoded_target
+            encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target + encoded_trigger_prefix
+            len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            encoded_label = [-100]*len_non_label + encoded_target + encoded_trigger_prefix
+            # encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target + triggers.tolist()
+            # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            # encoded_label = [-100]*len_non_label + encoded_target + triggers.tolist()
+
+            encoded_text.append(triggers[0])
+            encoded_label.append(triggers[0])
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:
                 max_len = len(encoded_text)
 
-        # pad tokens, i.e., append -1 to the end of the non-longest ones
         for indx, encoded_text in enumerate(encoded_texts):
             if len(encoded_text) < max_len:
                 current_len = len(encoded_text)
-                encoded_texts[indx].extend([50256] * (max_len - current_len))
+                encoded_texts[indx].extend([self.tokenizer.eos_token_id] * (max_len - current_len))
                 encoded_labels[indx].extend([-100] * (max_len - current_len))
         labels = torch.tensor(encoded_labels, device=self.device, dtype=torch.long)
         lm_inputs= torch.tensor(encoded_texts, device=self.device, dtype=torch.long)
@@ -84,7 +99,7 @@ class HotFlip:
                 embedding_matrix).detach()
         averaged_grad = averaged_grad.unsqueeze(0)
         gradient_dot_embedding_matrix = torch.einsum("bij,kj->bik",
-                (averaged_grad, embedding_matrix))        
+                (averaged_grad.float(), embedding_matrix.float()))        
         if not increase_loss:
             gradient_dot_embedding_matrix *= -1    # lower versus increase the class probability.  if num_candidates > 1: # get top k options
             _, best_k_ids = torch.topk(gradient_dot_embedding_matrix, num_candidates, dim=2)
@@ -112,6 +127,8 @@ class HotFlip:
                     averaged_grad = self.model.transformer.wte.weight.grad[token_to_flip].unsqueeze(0)
                 elif self.target_model == 'opt':
                     averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[token_to_flip].unsqueeze(0)
+                elif self.target_model == 'falcon':
+                    averaged_grad = self.model.transformer.word_embeddings.weight.grad[token_to_flip].unsqueeze(0)
 
                 # Use hotflip (linear approximation) attack to get the top num_candidates
                 candidates = self.hotflip_attack(averaged_grad, [token_to_flip], num_candidates=100)[0]
@@ -141,11 +158,12 @@ class HotFlip:
         results = []
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
         # first_trigger_tokens = self.sentence_to_char(self.sentence_to_tokens(self.prefix_1)[0])
-        for target_text in target_texts:
-            text = target_text + self.prefix_1 + triggers + '\n'
+        for idx, target_text in enumerate(target_texts):
+            text = target_text + self.trigger_prefix + triggers + '\n'
             # text = target_text  + triggers
             target_tokens = torch.tensor([self.tokenizer.encode(text)], device=self.device, dtype=torch.long)
             target_length = len(self.tokenizer.encode(target_text))+self.trigger_tokens.shape[0]
+            if target_length > 500: continue
             past = None
             with torch.no_grad():
                 generated_tokens = []
@@ -158,17 +176,27 @@ class HotFlip:
                     pred_token = self.sentence_to_char(self.tokenizer.decode(pred.item()))
                     generated_tokens.append(pred.item())
                 generation = self.tokenizer.decode(generated_tokens)
-                generation = self.postprocess(self.prefix_1 + generation)
+                generation = self.postprocess(generation)
                 results.append({'context': target_text, 'generation':generation})
         return results
     
     def postprocess(self, text):
         ret = text
-        for t in text.split(self.prefix_1):
-            if self.prefix_2 in t:
+        # for t in text.split('\n'):
+        #     t = t.replace(self.context_prefix, '')
+        #     t = t.replace(self.trigger_prefix, '')
+        #     t = t.replace(self.tokenizer.decode(self.trigger_tokens), '')
+        #     if t != '':
+        #         ret = t
+        #         break
+        for t in text.split(self.tokenizer.decode(self.trigger_tokens[0])):
+            t = t.replace(self.context_prefix, '')
+            t = t.replace(self.trigger_prefix, '')
+            if t != '':
                 ret = t
                 break
-        ret = self.prefix_1 + ret
+
+        ret = self.context_prefix + ret
         print(ret)
         return ret
 
@@ -192,7 +220,7 @@ class HotFlip:
             for result in results:
                 target = self.filter_tokens(result['context'])
                 pred = self.filter_tokens(result['generation'])
-                if pred == target: 
+                if target in pred: 
                     metric.update(1)
                 else: 
                     metric.update(0)
@@ -204,6 +232,7 @@ class HotFlip:
                 dist = EDD([result['generation']], [result['context']])
                 metric.update(dist)
             std, mean = torch.std_mean(metric.compute())
+            import ipdb;ipdb.set_trace()
             print(f"edit distance mean: {mean.item()}, std: {std.item()}")
         elif level == 'semantic':
             from sentence_transformers import SentenceTransformer, util
@@ -215,4 +244,5 @@ class HotFlip:
                 sim = util.pytorch_cos_sim(embedding_1, embedding_2)
                 metric.update(sim.to('cpu'))
             std, mean = torch.std_mean(metric.compute())
+            import ipdb;ipdb.set_trace()
             print(f"semantic mean: {mean.item()}, std: {std.item()}")

@@ -8,6 +8,8 @@ from datetime import datetime
 from collections import OrderedDict
 from financial import Financial
 from sst import SST
+from squad import Squad
+import os
 
 random.seed(0)
 np.random.seed(0)
@@ -29,14 +31,16 @@ def attack_data(target_model):
     target_path = f'results/{datetime.now().strftime("%Y_%m_%d-%I_%M")}_{target_model}.csv'
     save_to_csv(target_path, results)
 
-train_num = 16
+train_num = 6
 test_num = 1000
-# trainset = Financial(True, num=train_num)
-# testset = Financial(False, num=test_num)
-trainset = SST(True, num=train_num)
-testset = SST(False, num=test_num)
-target_model = 'opt'
-attack = HotFlip(trigger_token_length=6, target_model=target_model, prefix_1=trainset.prefix_1, prefix_2=trainset.prefix_2)
+trainset = Financial(True, num=train_num)
+testset = Financial(False, num=test_num)
+# trainset = SST(True, num=train_num)
+# testset = SST(False, num=test_num)
+# trainset = Squad(True, num=train_num)
+# testset = Squad(False, num=test_num)
+target_model = 'gptj'
+attack = HotFlip(trigger_token_length=6, target_model=target_model, context_prefix='sentence:', trigger_prefix='sentence:')
 attack.find_triggers(trainset)
 results = attack.sample_sequence(testset)
 attack.evaluate(results, prefix=testset.prefix_1, level='char')
