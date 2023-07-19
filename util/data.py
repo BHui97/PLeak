@@ -47,3 +47,46 @@ class Squad(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+
+class Mol(Dataset):
+    def __init__(self, train, num=16, prefix_1='instruction:'):
+        dataset = load_dataset("zjunlp/Mol-Instructions", 'Molecule-oriented Instructions')
+        self.dataset = random.choices(dataset['description_guided_molecule_design']['instruction'], k=num)
+        self.prefix_1 = prefix_1
+
+    def __getitem__(self, idx):
+        ret = self.prefix_1 + self.dataset[idx] + '\n'
+        return ret
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class Articles(Dataset):
+    def __init__(self, train, num=16, prefix_1='instruction:'):
+        dataset = load_dataset("nisaar/Articles_Constitution_3300_Instruction_Set")
+        self.dataset = random.choices(dataset['train']['instruction'], k=num)
+        self.prefix_1 = prefix_1
+
+    def __getitem__(self, idx):
+        ret = self.prefix_1 + self.dataset[idx] + '\n'
+        return ret
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class SIQA(Dataset):
+    def __init__(self, train, num=16, prefix_1='context:'):
+        dataset = load_dataset("social_i_qa")
+        self.dataset = random.choices(dataset['train']['context'], k=num)
+        self.prefix_1 = prefix_1
+
+    def __getitem__(self, idx):
+        ret = self.prefix_1 + self.dataset[idx] + '\n'
+        return ret
+
+    def __len__(self):
+        return len(self.dataset)
+
+import ipdb;ipdb.set_trace()

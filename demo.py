@@ -6,9 +6,7 @@ import numpy as np
 import torch
 from datetime import datetime
 from collections import OrderedDict
-from financial import Financial
-from sst import SST
-from squad import Squad
+from util.data import *
 import os
 
 random.seed(0)
