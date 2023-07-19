@@ -68,15 +68,11 @@ class HotFlip:
                 encoded_trigger_prefix = encoded_trigger_prefix[1:]
                 encoded_splash_n = encoded_splash_n[1:]
             else: encoded_target = encoded_target_text
-            encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target + encoded_trigger_prefix
-            len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
-            encoded_label = [-100]*len_non_label + encoded_target + encoded_trigger_prefix
-            # encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target + triggers.tolist()
-            # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
-            # encoded_label = [-100]*len_non_label + encoded_target + triggers.tolist()
 
-            encoded_text.append(triggers[0])
-            encoded_label.append(triggers[0])
+            encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
+            len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            encoded_label = [-100]*len_non_label + encoded_target
+
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:
@@ -157,10 +153,8 @@ class HotFlip:
     def sample_sequence(self, target_texts, triggers=None, length=100):
         results = []
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
-        # first_trigger_tokens = self.sentence_to_char(self.sentence_to_tokens(self.prefix_1)[0])
         for idx, target_text in enumerate(target_texts):
             text = target_text + self.trigger_prefix + triggers + '\n'
-            # text = target_text  + triggers
             target_tokens = torch.tensor([self.tokenizer.encode(text)], device=self.device, dtype=torch.long)
             target_length = len(self.tokenizer.encode(target_text))+self.trigger_tokens.shape[0]
             if target_length > 500: continue
@@ -182,13 +176,6 @@ class HotFlip:
     
     def postprocess(self, text):
         ret = text
-        # for t in text.split('\n'):
-        #     t = t.replace(self.context_prefix, '')
-        #     t = t.replace(self.trigger_prefix, '')
-        #     t = t.replace(self.tokenizer.decode(self.trigger_tokens), '')
-        #     if t != '':
-        #         ret = t
-        #         break
         for t in text.split(self.tokenizer.decode(self.trigger_tokens[0])):
             t = t.replace(self.context_prefix, '')
             t = t.replace(self.trigger_prefix, '')
