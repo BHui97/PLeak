@@ -23,6 +23,10 @@ class HotFlip:
             self.tokenizer = AutoTokenizer.from_pretrained("tiiuae/falcon-7b-instruct")
             self.model = AutoModelForCausalLM.from_pretrained("tiiuae/falcon-7b-instruct", device_map="auto", load_in_4bit=True, trust_remote_code=True).eval()
             self.vocab_size = 65024
+        elif target_model == 'llama':
+            self.tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+            self.model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf", device_map="auto", load_in_4bit=True).eval()
+            self.vocab_size = 32000
 
         self.embedding_weight = self.get_embedding_weight()
         self.add_hook()
@@ -63,7 +67,7 @@ class HotFlip:
             encoded_target_text = self.tokenizer.encode(target_text)
             encoded_trigger_prefix = self.tokenizer.encode(self.trigger_prefix)
             encoded_splash_n = self.tokenizer.encode('\n')
-            if self.target_model == 'opt': 
+            if self.target_model == 'opt' or self.target_model == 'llama': 
                 encoded_target = encoded_target_text[1:]
                 encoded_trigger_prefix = encoded_trigger_prefix[1:]
                 encoded_splash_n = encoded_splash_n[1:]
@@ -125,6 +129,9 @@ class HotFlip:
                     averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[token_to_flip].unsqueeze(0)
                 elif self.target_model == 'falcon':
                     averaged_grad = self.model.transformer.word_embeddings.weight.grad[token_to_flip].unsqueeze(0)
+                elif self.target_model == 'llama':
+                    averaged_grad = self.model.model.embed_tokens.weight.grad[token_to_flip].unsqueeze(0)
+
 
                 # Use hotflip (linear approximation) attack to get the top num_candidates
                 candidates = self.hotflip_attack(averaged_grad, [token_to_flip], num_candidates=100)[0]
