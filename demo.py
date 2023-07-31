@@ -37,9 +37,14 @@ testset = Financial(False, num=test_num)
 # testset = SST(False, num=test_num)
 # trainset = Squad(True, num=train_num)
 # testset = Squad(False, num=test_num)
-target_model = 'llama'
-attack = HotFlip(trigger_token_length=6, target_model=target_model, context_prefix='sentence:', trigger_prefix='sentence:')
-attack.find_triggers(trainset)
+
+# trainset = Mol(True, num=train_num)
+# testset = Mol(False, num=test_num)
+# trainset = Alpaca(True, num=train_num)
+# testset = Alpaca(False, num=test_num)
+target_model = 'gptj'
+attack = HotFlip(trigger_token_length=6, target_model=target_model, template=trainset.template)
+attack.replace_triggers(trainset)
 results = attack.sample_sequence(testset)
 attack.evaluate(results, prefix=testset.prefix_1, level='char')
 attack.evaluate(results, prefix=testset.prefix_1, level='edit')

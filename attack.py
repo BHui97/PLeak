@@ -5,19 +5,22 @@ from copy import deepcopy
 import re
 from nltk import pos_tag, word_tokenize
 import nltk
+from util.template import TextTemplate
 from torchmetrics import ExtendedEditDistance, CatMetric
 
 class HotFlip:
-    def __init__(self, trigger_token_length=6, target_model='gpt2', context_prefix='context:', trigger_prefix='input:'):
+    def __init__(self, trigger_token_length=6, target_model='gpt2', template=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
+        self.template = TextTemplate(prefix_1='') if template is None else template
+
         if target_model == 'gptj':
             self.tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-j-6B")
             self.model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size=50400
         elif target_model == 'opt':
-            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-1.3b")
-            self.model = OPTForCausalLM.from_pretrained("facebook/opt-1.3b", device_map="auto", load_in_4bit=True).eval()
+            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-350m")
+            self.model = OPTForCausalLM.from_pretrained("facebook/opt-350m", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size = 50272
         elif target_model == 'falcon':
             self.tokenizer = AutoTokenizer.from_pretrained("tiiuae/falcon-7b-instruct")
@@ -31,8 +34,6 @@ class HotFlip:
         self.embedding_weight = self.get_embedding_weight()
         self.add_hook()
         self.trigger_tokens = self.init_triggers(trigger_token_length)
-        self.context_prefix = context_prefix
-        self.trigger_prefix = trigger_prefix
 
     def init_triggers(self, trigger_token_length):
         triggers = np.empty(trigger_token_length, dtype=int)
@@ -65,7 +66,7 @@ class HotFlip:
         max_len = 0
         for target_text in target_texts:
             encoded_target_text = self.tokenizer.encode(target_text)
-            encoded_trigger_prefix = self.tokenizer.encode(self.trigger_prefix)
+            encoded_trigger_prefix = self.tokenizer.encode(self.template.prefix_trigger)
             encoded_splash_n = self.tokenizer.encode('\n')
             if self.target_model == 'opt' or self.target_model == 'llama': 
                 encoded_target = encoded_target_text[1:]
@@ -73,10 +74,18 @@ class HotFlip:
                 encoded_splash_n = encoded_splash_n[1:]
             else: encoded_target = encoded_target_text
 
-            encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
-            len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            # encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
+            # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            # encoded_label = [-100]*len_non_label + encoded_target
+
+            encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
+            len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
             encoded_label = [-100]*len_non_label + encoded_target
 
+            # encoded_text = encoded_target_text+ [self.tokenizer.eos_token_id, self.tokenizer.bos_token_id]  + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n +[self.tokenizer.eos_token_id] +[self.tokenizer.bos_token_id] +  encoded_target+[self.tokenizer.eos_token_id] 
+            # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)+3
+            # encoded_label = [-100]*len_non_label +[self.tokenizer.bos_token_id]+ encoded_target + [self.tokenizer.eos_token_id]
+            import ipdb;ipdb.set_trace()
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:
@@ -103,7 +112,7 @@ class HotFlip:
         if not increase_loss:
             gradient_dot_embedding_matrix *= -1    # lower versus increase the class probability.  if num_candidates > 1: # get top k options
             _, best_k_ids = torch.topk(gradient_dot_embedding_matrix, num_candidates, dim=2)
-            return best_k_ids.detach().cpu().numpy()[0]
+            return best_k_ids.detach().squeeze().cpu().numpy()
         _, best_at_each_step = gradient_dot_embedding_matrix.max(2)
         return best_at_each_step[0].detach().cpu().numpy()
 
@@ -134,7 +143,7 @@ class HotFlip:
 
 
                 # Use hotflip (linear approximation) attack to get the top num_candidates
-                candidates = self.hotflip_attack(averaged_grad, [token_to_flip], num_candidates=100)[0]
+                candidates = self.hotflip_attack(averaged_grad, [token_to_flip], num_candidates=100)
                 for cand in candidates:
                     if re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(cand)):
                         continue
@@ -157,12 +166,62 @@ class HotFlip:
                     print(f"\nNo improvement, ending iteration")
                     break
 
+    def replace_triggers(self, target_texts):
+        token_flipped = True
+        print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+        while token_flipped:
+            token_flipped = False
+            self.model.zero_grad()
+            lm_inputs, labels = self.make_target_batch(target_texts, self.trigger_tokens)
+            loss = self.model(lm_inputs, labels=labels)[0]
+            loss.backward()
+            best_loss = loss.item()
+            
+            if self.target_model == 'gpt2':
+                averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
+            elif self.target_model == 'gptj':
+                averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
+            elif self.target_model == 'opt':
+                averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[self.trigger_tokens]
+            elif self.target_model == 'falcon':
+                averaged_grad = self.model.transformer.word_embeddings.weight.grad[self.trigger_tokens]
+            elif self.target_model == 'llama':
+                averaged_grad = self.model.model.embed_tokens.weight.grad[self.trigger_tokens]
+
+            # Use hotflip (linear approximation) attack to get the top num_candidates
+            candidates = self.hotflip_attack(averaged_grad, [0], num_candidates=100)
+            best_trigger_tokens = deepcopy(self.trigger_tokens)
+            for i, token_to_flip in enumerate(self.trigger_tokens):
+                for cand in candidates[i]:
+                    if re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(cand)):
+                        continue
+                    candidate_trigger_tokens = deepcopy(self.trigger_tokens)
+                    candidate_trigger_tokens[i] = cand
+
+                    self.model.zero_grad()
+                    lm_inputs, labels = self.make_target_batch(target_texts, candidate_trigger_tokens)
+                    loss = self.model(lm_inputs, labels=labels)[0]
+                    if best_loss > loss.item():
+                        token_flipped = True
+                        best_loss = loss.item()
+                        best_trigger_tokens = deepcopy(candidate_trigger_tokens)
+            self.trigger_tokens = deepcopy(best_trigger_tokens)
+            if token_flipped:
+                print(f"Loss: {best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+            else:
+                print(f"\nNo improvement, ending iteration")
+
     def sample_sequence(self, target_texts, triggers=None, length=100):
         results = []
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
         for idx, target_text in enumerate(target_texts):
-            text = target_text + self.trigger_prefix + triggers + '\n'
+            text = target_text + self.template.format_trigger(triggers)
             target_tokens = torch.tensor([self.tokenizer.encode(text)], device=self.device, dtype=torch.long)
+
+
+            # text_tokens = self.tokenizer.encode(target_text)+[self.tokenizer.eos_token_id]
+            # trigger_tokens = self.tokenizer.encode(triggers + '\n')+[self.tokenizer.eos_token_id]
+            # target_tokens = torch.tensor([text_tokens+trigger_tokens], device=self.device, dtype=torch.long)
             target_length = len(self.tokenizer.encode(target_text))+self.trigger_tokens.shape[0]
             if target_length > 500: continue
             past = None
@@ -178,20 +237,20 @@ class HotFlip:
                     generated_tokens.append(pred.item())
                 generation = self.tokenizer.decode(generated_tokens)
                 generation = self.postprocess(generation)
+                print(target_text + generation)
                 results.append({'context': target_text, 'generation':generation})
         return results
     
     def postprocess(self, text):
         ret = text
         for t in text.split(self.tokenizer.decode(self.trigger_tokens[0])):
-            t = t.replace(self.context_prefix, '')
-            t = t.replace(self.trigger_prefix, '')
+            t = t.replace(self.template.prefix_1, '')
+            t = t.replace(self.template.prefix_trigger, '')
             if t != '':
                 ret = t
                 break
 
-        ret = self.context_prefix + ret
-        print(ret)
+        ret = self.template.prefix_1 + ret
         return ret
 
     def sentence_to_tokens(self, sentence):

@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 from datasets import load_dataset
+from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
@@ -7,12 +8,10 @@ class Financial(Dataset):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num)
         self.label = ['Negative', 'Neutral', 'Positive']
-        self.prefix_1 = prefix_1
-        self.prefix_2 = prefix_2
+        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
     
     def __getitem__(self, idx):
-        ret = self.prefix_1 + self.dataset[idx]['sentence'] + " " + self.prefix_2 + self.label[self.dataset[idx]['label']]+'.\n'
-        return ret
+        return self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
 
     def __len__(self):
         return len(self.dataset)
@@ -23,26 +22,37 @@ class SST(Dataset):
         dataset = load_dataset("sst2")
         self.dataset = random.choices(dataset["train"], k=num)
         self.label = ['Negative', 'Positive']
-        self.prefix_1 = prefix_1
-        self.prefix_2 = prefix_2
+        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
     
     def __getitem__(self, idx):
-        ret = self.prefix_1 + self.dataset[idx]['sentence'] + " " + self.prefix_2 + self.label[self.dataset[idx]['label']]+'.\n'
-        return ret
+        return self.template(self.dataset[idx]['sentence']+'.', self.label[self.dataset[idx]['label']])
+    
+    def __len__(self):
+        return len(self.dataset)
+
+
+class SQuAD(Dataset):
+    def __init__(self, train, num=16, prefix_1='context:'):
+        dataset = load_dataset("squad")
+        self.dataset = random.choices(dataset["train"], k=num)
+        self.prefix_1 = prefix_1
+        self.template = TextTemplate(prefix_1 = prefix_1)
+
+    def __getitem__(self, idx):
+        return self.template(self.dataset[idx]['context'])
 
     def __len__(self):
         return len(self.dataset)
 
 
-class Squad(Dataset):
+class SIQA(Dataset):
     def __init__(self, train, num=16, prefix_1='context:'):
-        dataset = load_dataset("squad")
-        self.dataset = random.choices(dataset["train"], k=num)
-        self.prefix_1 = prefix_1
+        dataset = load_dataset("social_i_qa")
+        self.dataset = random.choices(dataset['train']['context'], k=num)
+        self.template = TextTemplate(prefix_1 = prefix_1)
 
     def __getitem__(self, idx):
-        ret = self.prefix_1 + self.dataset[idx]['context'] + '\n'
-        return ret
+        return self.template(self.dataset[idx])
 
     def __len__(self):
         return len(self.dataset)
@@ -52,6 +62,20 @@ class Mol(Dataset):
     def __init__(self, train, num=16, prefix_1='instruction:'):
         dataset = load_dataset("zjunlp/Mol-Instructions", 'Molecule-oriented Instructions')
         self.dataset = random.choices(dataset['description_guided_molecule_design']['instruction'], k=num)
+        self.prefix_1 = prefix_1
+
+    def __getitem__(self, idx):
+        ret = self.prefix_1 + self.dataset[idx] + '\n'
+        return ret
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class Alpaca(Dataset):
+    def __init__(self, train, num=16, prefix_1='instruction:'):
+        dataset = load_dataset("tatsu-lab/alpaca")
+        self.dataset = random.choices(dataset['train']['instruction'], k=num)
         self.prefix_1 = prefix_1
 
     def __getitem__(self, idx):
@@ -75,18 +99,3 @@ class Articles(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-
-class SIQA(Dataset):
-    def __init__(self, train, num=16, prefix_1='context:'):
-        dataset = load_dataset("social_i_qa")
-        self.dataset = random.choices(dataset['train']['context'], k=num)
-        self.prefix_1 = prefix_1
-
-    def __getitem__(self, idx):
-        ret = self.prefix_1 + self.dataset[idx] + '\n'
-        return ret
-
-    def __len__(self):
-        return len(self.dataset)
-
-import ipdb;ipdb.set_trace()
