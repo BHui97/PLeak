@@ -15,12 +15,16 @@ class HotFlip:
         self.template = TextTemplate(prefix_1='') if template is None else template
 
         if target_model == 'gptj':
-            self.tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-j-6B")
-            self.model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", device_map="auto", load_in_4bit=True).eval()
+            self.tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-j-6b")
+            self.model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-j-6b", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size=50400
+        elif target_model == 'gpt2':
+            self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
+            self.model = AutoModelForCausalLM.from_pretrained("gpt2", device_map="auto", load_in_4bit=True).eval()
+            self.vocab_size=50257
         elif target_model == 'opt':
-            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-350m")
-            self.model = OPTForCausalLM.from_pretrained("facebook/opt-350m", device_map="auto", load_in_4bit=True).eval()
+            self.tokenizer = AutoTokenizer.from_pretrained("facebook/opt-1.3B")
+            self.model = OPTForCausalLM.from_pretrained("facebook/opt-1.3B", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size = 50272
         elif target_model == 'falcon':
             self.tokenizer = AutoTokenizer.from_pretrained("tiiuae/falcon-7b-instruct")
@@ -29,6 +33,11 @@ class HotFlip:
         elif target_model == 'llama':
             self.tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
             self.model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf", device_map="auto", load_in_4bit=True).eval()
+            self.vocab_size = 32000
+        # Load model directly
+        elif target_model == 'vicuna':
+            self.tokenizer = AutoTokenizer.from_pretrained("lmsys/vicuna-7b-v1.5")
+            self.model = AutoModelForCausalLM.from_pretrained("lmsys/vicuna-7b-v1.5", device_map="auto", load_in_4bit=True).eval()
             self.vocab_size = 32000
 
         self.embedding_weight = self.get_embedding_weight()
@@ -68,7 +77,7 @@ class HotFlip:
             encoded_target_text = self.tokenizer.encode(target_text)
             encoded_trigger_prefix = self.tokenizer.encode(self.template.prefix_trigger)
             encoded_splash_n = self.tokenizer.encode('\n')
-            if self.target_model == 'opt' or self.target_model == 'llama': 
+            if self.target_model == 'opt' or self.target_model == 'llama' or self.target_model=='vicuna': 
                 encoded_target = encoded_target_text[1:]
                 encoded_trigger_prefix = encoded_trigger_prefix[1:]
                 encoded_splash_n = encoded_splash_n[1:]
@@ -78,14 +87,16 @@ class HotFlip:
             # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
             # encoded_label = [-100]*len_non_label + encoded_target
 
-            encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
+            encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target+ encoded_trigger_prefix
+
             len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
-            encoded_label = [-100]*len_non_label + encoded_target
+            # encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
+            # len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+            encoded_label = [-100]*len_non_label + encoded_target + encoded_trigger_prefix
 
             # encoded_text = encoded_target_text+ [self.tokenizer.eos_token_id, self.tokenizer.bos_token_id]  + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n +[self.tokenizer.eos_token_id] +[self.tokenizer.bos_token_id] +  encoded_target+[self.tokenizer.eos_token_id] 
             # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)+3
             # encoded_label = [-100]*len_non_label +[self.tokenizer.bos_token_id]+ encoded_target + [self.tokenizer.eos_token_id]
-            import ipdb;ipdb.set_trace()
             encoded_texts.append(encoded_text)
             encoded_labels.append(encoded_label)
             if len(encoded_text) > max_len:
@@ -138,7 +149,7 @@ class HotFlip:
                     averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[token_to_flip].unsqueeze(0)
                 elif self.target_model == 'falcon':
                     averaged_grad = self.model.transformer.word_embeddings.weight.grad[token_to_flip].unsqueeze(0)
-                elif self.target_model == 'llama':
+                elif self.target_model == 'llama' or 'vicuna':
                     averaged_grad = self.model.model.embed_tokens.weight.grad[token_to_flip].unsqueeze(0)
 
 
@@ -185,7 +196,7 @@ class HotFlip:
                 averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[self.trigger_tokens]
             elif self.target_model == 'falcon':
                 averaged_grad = self.model.transformer.word_embeddings.weight.grad[self.trigger_tokens]
-            elif self.target_model == 'llama':
+            elif self.target_model == 'llama' or 'vicuna':
                 averaged_grad = self.model.model.embed_tokens.weight.grad[self.trigger_tokens]
 
             # Use hotflip (linear approximation) attack to get the top num_candidates
@@ -236,7 +247,7 @@ class HotFlip:
                     pred_token = self.sentence_to_char(self.tokenizer.decode(pred.item()))
                     generated_tokens.append(pred.item())
                 generation = self.tokenizer.decode(generated_tokens)
-                generation = self.postprocess(generation)
+                generation = self.postprocess_2(generation)
                 print(target_text + generation)
                 results.append({'context': target_text, 'generation':generation})
         return results
@@ -253,6 +264,22 @@ class HotFlip:
         ret = self.template.prefix_1 + ret
         return ret
 
+    def postprocess_2(self, text):
+        ret = text
+        sentences = []
+        sentences_filtered = [self.sentence_to_char(self.template.format_trigger(self.tokenizer.decode(self.trigger_tokens)))]
+        for t in text.split('\n'):
+            t_filtered = self.sentence_to_char(t)
+            if len(sentences) == 0:
+                sentences.append(t)
+                sentences_filtered.append(t_filtered)
+            elif t_filtered not in sentences_filtered and t_filtered != '':
+                if t_filtered not in  ''.join(sentences_filtered):
+                    sentences.append(t)
+                    sentences_filtered.append(t_filtered)
+            else:
+                break
+        return ''.join(sentences)
     def sentence_to_tokens(self, sentence):
         ret_tokens = [word for word, pos in pos_tag(word_tokenize(sentence), tagset='universal') if pos.startswith('N') or pos.startswith('A') or pos.startswith('V') or pos.startswith('X')]
         return ret_tokens
@@ -267,13 +294,13 @@ class HotFlip:
 
         return filtered_sentence
 
-    def evaluate(self, results, prefix=None, level='char'):
+    def evaluate(self, results, level='char'):
         metric = CatMetric()
         if level == 'char':
             for result in results:
                 target = self.filter_tokens(result['context'])
                 pred = self.filter_tokens(result['generation'])
-                if target in pred: 
+                if target == pred: 
                     metric.update(1)
                 else: 
                     metric.update(0)
