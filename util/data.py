@@ -57,6 +57,18 @@ class SIQA(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+class Awesome(Dataset):
+    def __init__(self, train, num=16, prefix_1=''):
+        dataset = load_dataset("csv", data_files="util/prompts.csv")
+        self.dataset = random.choices(dataset['train']['prompt'], k=num)
+        self.template = TextTemplate(prefix_1 = prefix_1)
+
+    def __getitem__(self, idx):
+        return self.template(self.dataset[idx])
+
+    def __len__(self):
+        return len(self.dataset)
+
 
 class Mol(Dataset):
     def __init__(self, train, num=16, prefix_1='instruction:'):
@@ -98,4 +110,6 @@ class Articles(Dataset):
 
     def __len__(self):
         return len(self.dataset)
+
+
 

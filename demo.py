@@ -29,13 +29,13 @@ def attack_data(target_model):
     target_path = f'results/{datetime.now().strftime("%Y_%m_%d-%I_%M")}_{target_model}.csv'
     save_to_csv(target_path, results)
 
-train_num = 4
+train_num = 2
 test_num = 1000
-trainset = Financial(True, num=train_num)
-testset = Financial(False, num=test_num)
+trainset = Awesome(True, num=train_num)
+testset = Awesome(False, num=test_num)
 # trainset = SST(True, num=train_num)
 # testset = SST(False, num=test_num)
-target_model = 'vicuna'
+target_model = 'llama'
 attack = HotFlip(trigger_token_length=6, target_model=target_model, template=trainset.template)
 attack.replace_triggers(trainset)
 results = attack.sample_sequence(testset)
