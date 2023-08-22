@@ -61,10 +61,21 @@ class Awesome(Dataset):
     def __init__(self, train, num=16, prefix_1=''):
         dataset = load_dataset("csv", data_files="util/prompts.csv")
         self.dataset = random.choices(dataset['train']['prompt'], k=num)
-        self.template = TextTemplate(prefix_1 = prefix_1)
 
     def __getitem__(self, idx):
-        return self.template(self.dataset[idx])
+        return self.dataset[idx]
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class Harmful(Dataset):
+    def __init__(self, train, num=16, prefix_1=''):
+        dataset = load_dataset("csv", data_files="util/harmful_behaviors.csv")
+        self.dataset = random.choices(dataset['train']['goal'], k=num)
+
+    def __getitem__(self, idx):
+        return self.dataset[idx]
 
     def __len__(self):
         return len(self.dataset)
