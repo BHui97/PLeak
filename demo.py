@@ -30,18 +30,22 @@ def attack_data(target_model):
     save_to_csv(target_path, results)
 
 train_num = 32
-test_num = 100
-trainset = Awesome(True, num=train_num)
-testset = Awesome(False, num=test_num)
-# trainset = SST(True, num=train_num)
-# testset = SST(False, num=test_num)
+test_num = 1000
+# trainset = Awesome(True, num=train_num)
+# testset = Awesome(False, num=test_num)
+trainset = Financial(True, num=train_num, with_instruction=False)
+testset = Financial(False, num=test_num)
 target_model = 'llama'
-attack = HotFlip(trigger_token_length=10, target_model=target_model)
+attack = HotFlip(trigger_token_length=6, target_model=target_model, template=trainset.template)
 attack.replace_triggers(trainset)
 results = attack.sample_sequence(testset)
-attack.evaluate(results, level='char')
+# results = attack.sample_sequence(testset, triggers='inst InstructionModLoader egreg innumerableochond')
+attack.evaluate(results, level='em')
 attack.evaluate(results, level='edit')
 attack.evaluate(results, level='semantic')
+# attack.evaluate(results, level='em', example_only=False)
+# attack.evaluate(results, level='edit', example_only=False)
+# attack.evaluate(results, level='semantic', example_only=False)
 # trainset, _ = load_financial_data(train_num, test_num)
 # _, testset = load_glue_data(train_num, test_num)
 # shadow_model = 'gpt2'

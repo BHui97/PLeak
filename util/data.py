@@ -4,14 +4,17 @@ from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:'):
+    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num)
         self.label = ['Negative', 'Neutral', 'Positive']
         self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.instruction_prefix = "instruction:"
+        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
     
     def __getitem__(self, idx):
-        return self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+        return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+        # return self.template(self.instruction+self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
 
     def __len__(self):
         return len(self.dataset)
