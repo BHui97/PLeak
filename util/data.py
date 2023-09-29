@@ -21,14 +21,31 @@ class Financial(Dataset):
 
 
 class SST(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:'):
+    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=True):
         dataset = load_dataset("sst2")
         self.dataset = random.choices(dataset["train"], k=num)
         self.label = ['Negative', 'Positive']
         self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.instruction_prefix = "instruction:"
+        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
     
     def __getitem__(self, idx):
-        return self.template(self.dataset[idx]['sentence']+'.', self.label[self.dataset[idx]['label']])
+        return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+    
+    def __len__(self):
+        return len(self.dataset)
+
+class Tomatoes(Dataset):
+    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=True):
+        dataset = load_dataset("rotten_tomatoes")
+        self.dataset = random.choices(dataset["train"], k=num)
+        self.label = ['Negative', 'Positive']
+        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.instruction_prefix = "instruction:"
+        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
+    
+    def __getitem__(self, idx):
+        return self.instruction + self.template(self.dataset[idx]['text'], self.label[self.dataset[idx]['label']])
     
     def __len__(self):
         return len(self.dataset)
@@ -64,9 +81,10 @@ class Awesome(Dataset):
     def __init__(self, train, num=16, prefix_1=''):
         dataset = load_dataset("csv", data_files="util/prompts.csv")
         self.dataset = random.choices(dataset['train']['prompt'], k=num)
+        self.instruction_prefix = "instruction:"
 
     def __getitem__(self, idx):
-        return self.dataset[idx]
+        return self.instruction_prefix+self.dataset[idx]
 
     def __len__(self):
         return len(self.dataset)

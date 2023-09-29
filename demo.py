@@ -29,16 +29,23 @@ def attack_data(target_model):
     target_path = f'results/{datetime.now().strftime("%Y_%m_%d-%I_%M")}_{target_model}.csv'
     save_to_csv(target_path, results)
 
-train_num = 32
+train_num = 16
 test_num = 1000
 # trainset = Awesome(True, num=train_num)
 # testset = Awesome(False, num=test_num)
-trainset = Financial(True, num=train_num, with_instruction=False)
-testset = Financial(False, num=test_num)
+dataset = 'Tomatoes'
+trainset = Tomatoes(True, num=train_num, with_instruction=False)
+testset = Tomatoes(False, num=test_num)
 target_model = 'llama'
+model = 'llama'
 attack = HotFlip(trigger_token_length=6, target_model=target_model, template=trainset.template)
 attack.replace_triggers(trainset)
+target_folder_path = f'results/{target_model}/{dataset}/{attack.decode_triggers()}/'
+if not os.path.exists(target_folder_path):
+    os.makedirs(target_folder_path)
 results = attack.sample_sequence(testset)
+save_to_csv(target_folder_path + f'{model}.csv', results)
+
 # results = attack.sample_sequence(testset, triggers='inst InstructionModLoader egreg innumerableochond')
 attack.evaluate(results, level='em')
 attack.evaluate(results, level='edit')
