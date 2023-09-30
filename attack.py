@@ -105,7 +105,7 @@ class HotFlip:
         return lm_input, label
 
 
-    def conver_text(self, target_text, trigger_tokens):
+    def conver_text(self, target_text, idx_loss, trigger_tokens):
         self.conv_template.system_message = target_text
         self.conv_template.append_message(self.conv_template.roles[0], f"{self.user_prefix+self.tokenizer.decode(trigger_tokens)}")
         self.conv_template.append_message(self.conv_template.roles[1], f"{target_text}")
@@ -117,7 +117,14 @@ class HotFlip:
         self.conv_template.append_message(self.conv_template.roles[0], f"{self.user_prefix+self.tokenizer.decode(trigger_tokens)}")
         prompt = self.conv_template.get_prompt()
         label_start = len(self.tokenizer.encode(prompt))+1
-        label = [-100]*label_start + encoding[label_start:]
+        max_len = len(encoding) - label_start + 1 
+        if max_len > self.max_len: self.max_len = max_len
+
+        if idx_loss * 10 >self.max_len:
+            label = [-100]*label_start + encoding[label_start:]
+        else:
+            label = [-100]*label_start + encoding[label_start:idx_loss*10]
+            encoding  = encoding[:idx_loss*10]
         self.conv_template.messages = []
 
         label = torch.tensor([label], device=self.device, dtype=torch.long)
@@ -183,46 +190,51 @@ class HotFlip:
         token_flipped = True
         self.init_instruction(len(target_texts))
         print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
-        while token_flipped:
-            token_flipped = False
-            with torch.set_grad_enabled(True):
-                self.model.zero_grad()
-                best_loss = self.compute_loss(target_texts, self.trigger_tokens, require_grad=True)
-            print(f"current loss:{best_loss}")
-            
-            if self.target_model == 'gpt2':
-                averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
-            elif self.target_model == 'gptj':
-                averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
-            elif self.target_model == 'opt':
-                averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[self.trigger_tokens]
-            elif self.target_model == 'llama' or 'vicuna':
-                averaged_grad = self.model.model.embed_tokens.weight.grad[self.trigger_tokens]
-            elif self.target_model == 'falcon':
-                averaged_grad = self.model.transformer.word_embeddings.weight.grad[self.trigger_tokens]
-
-            # Use hotflip (linear approximation) attack to get the top num_candidates
-            candidates = self.hotflip_attack(averaged_grad, num_candidates=10)
-            best_trigger_tokens = deepcopy(self.trigger_tokens)
-            for i, token_to_flip in enumerate(self.trigger_tokens):
-                for cand in candidates[i]:
-                    if re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(cand)):
-                        continue
-                    candidate_trigger_tokens = deepcopy(self.trigger_tokens)
-                    candidate_trigger_tokens[i] = cand
-
+        self.max_len = 100
+        idx_loss = 1
+        while idx_loss * 10 < self.max_len:
+            while token_flipped:
+                token_flipped = False
+                with torch.set_grad_enabled(True):
                     self.model.zero_grad()
-                    with torch.no_grad():
-                        loss = self.compute_loss(target_texts, candidate_trigger_tokens, require_grad=False)
-                    if best_loss > loss:
-                        token_flipped = True
-                        best_loss = loss
-                        best_trigger_tokens = deepcopy(candidate_trigger_tokens)
-            self.trigger_tokens = deepcopy(best_trigger_tokens)
-            if token_flipped:
-                print(f"Loss: {best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
-            else:
-                print(f"\nNo improvement, ending iteration")
+                    best_loss = self.compute_loss(target_texts, self.trigger_tokens, idx_loss, require_grad=True)
+                print(f"current loss:{best_loss}")
+                
+                if self.target_model == 'gpt2':
+                    averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
+                elif self.target_model == 'gptj':
+                    averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
+                elif self.target_model == 'opt':
+                    averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[self.trigger_tokens]
+                elif self.target_model == 'llama' or 'vicuna':
+                    averaged_grad = self.model.model.embed_tokens.weight.grad[self.trigger_tokens]
+                elif self.target_model == 'falcon':
+                    averaged_grad = self.model.transformer.word_embeddings.weight.grad[self.trigger_tokens]
+
+                # Use hotflip (linear approximation) attack to get the top num_candidates
+                candidates = self.hotflip_attack(averaged_grad, num_candidates=10)
+                best_trigger_tokens = deepcopy(self.trigger_tokens)
+                for i, token_to_flip in enumerate(self.trigger_tokens):
+                    for cand in candidates[i]:
+                        if re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(cand)):
+                            continue
+                        candidate_trigger_tokens = deepcopy(self.trigger_tokens)
+                        candidate_trigger_tokens[i] = cand
+
+                        self.model.zero_grad()
+                        with torch.no_grad():
+                            loss = self.compute_loss(target_texts, candidate_trigger_tokens, idx_loss, require_grad=False)
+                        if best_loss > loss:
+                            token_flipped = True
+                            best_loss = loss
+                            best_trigger_tokens = deepcopy(candidate_trigger_tokens)
+                self.trigger_tokens = deepcopy(best_trigger_tokens)
+                if token_flipped:
+                    print(f"Loss: {best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+                else:
+                    print(f"\nNo improvement, ending iteration")
+            idx_loss += 1
+            print(f"Enter next iteration :{idx_loss}")
 
     def find_triggers(self, target_texts):
         token_flipped = True
@@ -270,11 +282,11 @@ class HotFlip:
             else:
                 print(f"\nNo improvement, ending iteration")
 
-    def compute_loss(self, target_texts, trigger_tokens, require_grad=False):
+    def compute_loss(self, target_texts, trigger_tokens, idx_loss,  require_grad=False):
         total_loss = 0
         for index, text in enumerate(target_texts):
             # lm_input, label = self.make_target(index, text, trigger_tokens) 
-            lm_input, label = self.conver_text(text, trigger_tokens) 
+            lm_input, label = self.conver_text(text, idx_loss, trigger_tokens) 
             loss = self.model(lm_input, labels=label)[0]/len(target_texts)
             total_loss += loss.item()
             if require_grad:
