@@ -21,7 +21,7 @@ class Financial(Dataset):
 
 
 class SST(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=True):
+    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=False):
         dataset = load_dataset("sst2")
         self.dataset = random.choices(dataset["train"], k=num)
         self.label = ['Negative', 'Positive']
@@ -81,10 +81,11 @@ class Awesome(Dataset):
     def __init__(self, train, num=16, prefix_1=''):
         dataset = load_dataset("csv", data_files="util/prompts.csv")
         self.dataset = random.choices(dataset['train']['prompt'], k=num)
-        self.instruction_prefix = "instruction:"
+        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2='')
+        self.instruction_prefix = ""
 
     def __getitem__(self, idx):
-        return self.instruction_prefix+self.dataset[idx]
+        return self.instruction_prefix+self.dataset[idx]+'\n'
 
     def __len__(self):
         return len(self.dataset)
