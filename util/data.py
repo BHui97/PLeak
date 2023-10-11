@@ -4,48 +4,47 @@ from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:',with_instruction=True):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='sentence:', prefix_2='label:',with_instruction=False):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num)
+        self.num_shots = num_shots
         self.label = ['Negative', 'Neutral', 'Positive']
         self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.with_instruction = with_instruction
         self.instruction_prefix = "instruction:"
-        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
+        instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
+        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
     
     def __getitem__(self, idx):
-        return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
-        # return self.template(self.instruction+self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
+        for i in range(self.num_shots):
+            ret += self.template(self.dataset[idx*self.num_shots+i]['sentence'], self.label[self.dataset[idx*self.num_shots+i]['label']])
+
+        return ret
 
     def __len__(self):
         return len(self.dataset)
 
-
-class SST(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=False):
-        dataset = load_dataset("sst2")
-        self.dataset = random.choices(dataset["train"], k=num)
-        self.label = ['Negative', 'Positive']
-        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
-        self.instruction_prefix = "instruction:"
-        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
-    
-    def __getitem__(self, idx):
-        return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
-    
-    def __len__(self):
-        return len(self.dataset)
 
 class Tomatoes(Dataset):
-    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=True):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:', with_instruction=False):
         dataset = load_dataset("rotten_tomatoes")
-        self.dataset = random.choices(dataset["train"], k=num)
+        self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.label = ['Negative', 'Positive']
         self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.num_shots = num_shots
+        self.with_instruction = with_instruction
         self.instruction_prefix = "instruction:"
-        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
+        instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
+        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
     
     def __getitem__(self, idx):
-        return self.instruction + self.template(self.dataset[idx]['text'], self.label[self.dataset[idx]['label']])
+        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
+        for i in range(self.num_shots):
+            ret += self.template(self.dataset[idx*self.num_shots+i]['text'], self.label[self.dataset[idx*self.num_shots+i]['label']])
+
+        return ret
+        # return self.instruction + self.template(self.dataset[idx]['text'], self.label[self.dataset[idx]['label']])
     
     def __len__(self):
         return len(self.dataset)
@@ -145,4 +144,17 @@ class Articles(Dataset):
         return len(self.dataset)
 
 
-
+class SST(Dataset):
+    def __init__(self, train, num=16, prefix_1='sentence:', prefix_2='label:', with_instruction=False):
+        dataset = load_dataset("sst2")
+        self.dataset = random.choices(dataset["train"], k=num)
+        self.label = ['Negative', 'Positive']
+        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)
+        self.instruction_prefix = "instruction:"
+        self.instruction = (self.instruction_prefix+"Please analyze the sentiment of following sentences.\n\n") if with_instruction else ''
+    
+    def __getitem__(self, idx):
+        return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+    
+    def __len__(self):
+        return len(self.dataset)
