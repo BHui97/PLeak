@@ -4,7 +4,7 @@ from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
-    def __init__(self, train, num=16, num_shots=1, prefix_1='sentence:', prefix_2='label:',with_instruction=False):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num)
         self.num_shots = num_shots
@@ -23,11 +23,11 @@ class Financial(Dataset):
         return ret
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.dataset)//self.num_shots
 
 
 class Tomatoes(Dataset):
-    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:', with_instruction=False):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:', with_instruction=True):
         dataset = load_dataset("rotten_tomatoes")
         self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.label = ['Negative', 'Positive']
@@ -44,10 +44,9 @@ class Tomatoes(Dataset):
             ret += self.template(self.dataset[idx*self.num_shots+i]['text'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 
         return ret
-        # return self.instruction + self.template(self.dataset[idx]['text'], self.label[self.dataset[idx]['label']])
     
     def __len__(self):
-        return len(self.dataset)
+        return len(self.dataset)//self.num_shots
 
 
 class SQuAD(Dataset):

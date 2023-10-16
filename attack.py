@@ -148,11 +148,7 @@ class HotFlip:
                 encoded_splash_n = encoded_splash_n[1:]
             else: encoded_target = encoded_target_text
 
-            # encoded_text = encoded_target_text + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
-            # len_non_label = len(encoded_target_text)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
-            # encoded_label = [-100]*len_non_label + encoded_target
-
-            encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target+ encoded_trigger_prefix
+            encoded_text = encoded_target + encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
 
             len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
             encoded_label = [-100]*len_non_label + encoded_target
@@ -197,7 +193,7 @@ class HotFlip:
                 with torch.set_grad_enabled(True):
                     self.model.zero_grad()
                     best_loss = self.compute_loss(target_texts, self.trigger_tokens, idx_loss, require_grad=True)
-                print(f"current loss:{best_loss}")
+                print(f"current loss:{best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
                 
                 if self.target_model == 'gpt2':
                     averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
@@ -205,7 +201,7 @@ class HotFlip:
                     averaged_grad = self.model.transformer.wte.weight.grad[self.trigger_tokens]
                 elif self.target_model == 'opt':
                     averaged_grad = self.model.model.decoder.embed_tokens.weight.grad[self.trigger_tokens]
-                elif self.target_model == 'llama' or 'vicuna':
+                elif self.target_model == 'llama':
                     averaged_grad = self.model.model.embed_tokens.weight.grad[self.trigger_tokens]
                 elif self.target_model == 'falcon':
                     averaged_grad = self.model.transformer.word_embeddings.weight.grad[self.trigger_tokens]
@@ -315,7 +311,6 @@ class HotFlip:
                 else:
                     gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                 generation = self.tokenizer.decode(gt[0, target_length:])
-                import ipdb;ipdb.set_trace()
                 generation = self.postprocess(generation, triggers)
                 target = self.filter_tokens(target_text)
                 pred = self.filter_tokens(generation)
@@ -366,23 +361,23 @@ class HotFlip:
 
     def evaluate(self, results, level='char'):
         metric = CatMetric()
+        keys = list(results[0].keys())
         if level == 'em':
             for result in results:
-                target_text = result['context']
+                target_text = result[keys[0]]
                 target = self.filter_tokens(target_text)
-                pred = self.filter_tokens(result[self.decode_triggers()])
+                pred = self.filter_tokens(result[keys[1]])
                 if target in pred: 
                     metric.update(1)
                 else: 
                     metric.update(0)
-                    # import ipdb;ipdb.set_trace()
                 mean = torch.mean(metric.compute())
             print(f"em Acc: {mean.item()}")
         elif level == 'edit':
             EDD = ExtendedEditDistance()
             for result in results:
-                target_text = result['context']
-                dist = EDD([result[self.decode_triggers()]], [target_text])
+                target_text = result[keys[0]]
+                dist = EDD([result[keys[1]]], [target_text])
                 metric.update(dist)
             std, mean = torch.std_mean(metric.compute())
             print(f"edit distance mean: {mean.item()}, std: {std.item()}")
@@ -390,8 +385,8 @@ class HotFlip:
             from sentence_transformers import SentenceTransformer, util
             model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
             for result in results:
-                target_text = result['context']
-                embedding_1= model.encode(result[self.decode_triggers()], convert_to_tensor=True)
+                target_text = result[keys[0]]
+                embedding_1= model.encode(result[keys[1]], convert_to_tensor=True)
                 embedding_2 = model.encode(target_text, convert_to_tensor=True)
 
                 sim = util.pytorch_cos_sim(embedding_1, embedding_2)
