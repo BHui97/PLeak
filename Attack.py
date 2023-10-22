@@ -46,7 +46,7 @@ class HotFlip:
     def decode_triggers(self):
         return self.user_prefix + self.tokenizer.decode(self.trigger_tokens)
 
-    def make_target(self, index, target_text, triggers):
+    def make_target(self, index, idx_loss, target_text, triggers):
         encoded_target_text = self.tokenizer.encode(target_text)
         encoded_trigger_prefix = self.tokenizer.encode(self.template.prefix_trigger)
         encoded_splash_n = self.tokenizer.encode('\n')
@@ -60,9 +60,16 @@ class HotFlip:
 
         encoded_text = encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
 
-        len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + len(encoded_user_prefix) + triggers.shape[0] + len(encoded_splash_n)
-        encoded_label = [-100]*len_non_label + encoded_target
+        len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+        max_len = len(encoded_target)
+        if max_len > self.max_len: self.max_len = max_len
 
+        if idx_loss*self.step > self.max_len:
+            encoded_label = [-100]*len_non_label + encoded_target
+        else:
+            encoded_label = [-100] * len_non_label + encoded_target[:idx_loss*self.step]
+
+        encoded_text = encoded_text[:len(encoded_label)]
         label = torch.tensor([encoded_label], device=self.device, dtype=torch.long)
         lm_input= torch.tensor([encoded_text], device=self.device, dtype=torch.long)
         return lm_input, label
@@ -70,7 +77,7 @@ class HotFlip:
     def compute_loss(self, target_texts, trigger_tokens, idx_loss,  require_grad=False):
         total_loss = 0
         for index, text in enumerate(target_texts):
-            lm_input, label = self.make_target(index, text, trigger_tokens) 
+            lm_input, label = self.make_target(index, idx_loss, text, trigger_tokens) 
             loss = self.model(lm_input, labels=label)[0]/len(target_texts)
             total_loss += loss.item()
             if require_grad:
@@ -88,10 +95,10 @@ class HotFlip:
         return best_k_ids.detach().squeeze().cpu().numpy()
 
     def replace_triggers(self, target_texts):
-        print(f"init_triggers:{self.user_prefix + self.tokenizer.decode(self.trigger_tokens)}")
-        self.max_len = 200
+        print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+        self.max_len = self.step+10
         idx_loss = 1
-        while idx_loss * self.step < self.max_len:
+        while idx_loss <= self.max_len//self.step+1:
             token_flipped = True
             while token_flipped:
                 token_flipped = False
@@ -99,6 +106,7 @@ class HotFlip:
                     self.model.zero_grad()
                     best_loss = self.compute_loss(target_texts, self.trigger_tokens, idx_loss, require_grad=True)
                 print(f"current loss:{best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+                
                 
                 candidates = self.hotflip_attack(self.get_triggers_grad(), num_candidates=30)
                 best_trigger_tokens = deepcopy(self.trigger_tokens)

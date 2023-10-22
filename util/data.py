@@ -103,15 +103,17 @@ class SIQA(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-class Awesome(Dataset):
+
+class Roles(Dataset):
     def __init__(self, train, num=16, prefix_1=''):
-        dataset = load_dataset("csv", data_files="util/prompts.csv")
-        self.dataset = random.choices(dataset['train']['prompt'], k=num)
-        self.template = TextTemplate(prefix_1 = prefix_1, prefix_2='')
-        self.instruction_prefix = ""
+        dataset = load_dataset("csv", data_files="util/roles.csv")
+        num = num if num < len(dataset['train']['instruction']) else len(dataset['train']['instruction'])
+        self.dataset = random.choices(dataset['train']['instruction'], k=num)
+        self.template = TextTemplate(prefix_1 = '', prefix_2='')
+        self.prefix_1 = prefix_1
 
     def __getitem__(self, idx):
-        return self.instruction_prefix+self.dataset[idx]+'\n'
+        return self.prefix_1 + self.dataset[idx] + '\n'
 
     def __len__(self):
         return len(self.dataset)
@@ -183,5 +185,20 @@ class SST(Dataset):
     def __getitem__(self, idx):
         return self.instruction + self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
     
+    def __len__(self):
+        return len(self.dataset)
+
+
+class Awesome(Dataset):
+    def __init__(self, train, num=16, prefix_1='context:'):
+        dataset = load_dataset("fka/awesome-chatgpt-prompts")
+        num = num if num < len(dataset['train']['prompt']) else len(dataset['train']['prompt'])
+        self.dataset = random.choices(dataset['train']['prompt'], k=num)
+        self.template = TextTemplate(prefix_1 = '', prefix_2='')
+        self.prefix_1 = prefix_1
+
+    def __getitem__(self, idx):
+        return self.prefix_1 + self.dataset[idx] + '\n'
+
     def __len__(self):
         return len(self.dataset)

@@ -2,6 +2,8 @@ import torch
 import csv
 from ModelFactory import ModelFactory
 from torchmetrics import ExtendedEditDistance, CatMetric
+from torchmetrics.text import BLEUScore
+from torchmetrics.functional.text import bleu_score
 from util.template import TextTemplate
 import re
 from nltk import pos_tag, word_tokenize
@@ -31,11 +33,12 @@ class Sampler():
                     if self.target_model == 'falcon':
                         gt = self.model.generate(target_tokens.input_ids, max_length = target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                     else:
-                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
+                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=1)
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
                     results.append({'context': target_text, triggers:generation})
                     print(f'{idx=}\n{text=}\n{generation=}')
+                    self.evaluate([{'context': target_text, triggers:generation}])
                 except RuntimeError as err:
                     print(f'{idx:} skip')
         return results
@@ -74,7 +77,7 @@ class Sampler():
 
         return filtered_sentence
 
-    def evaluate(self, results, level='char'):
+    def evaluate(self, results, level='em'):
         metric = CatMetric()
         keys = list(results[0].keys())
         if level == 'em':
@@ -86,6 +89,7 @@ class Sampler():
                     metric.update(1)
                 else: 
                     metric.update(0)
+                    import ipdb;ipdb.set_trace()
                 mean = torch.mean(metric.compute())
             print(f"em Acc: {mean.item()}")
         elif level == 'edit':
@@ -108,6 +112,15 @@ class Sampler():
                 metric.update(sim.to('cpu'))
             std, mean = torch.std_mean(metric.compute())
             print(f"semantic mean: {mean.item()}, std: {std.item()}")
+        elif level == 'bleu':
+            for result in results:
+                target_text = result[keys[0]]
+                dist = bleu_score([result[keys[1]]], [target_text])
+                # import ipdb;ipdb.set_trace()
+                metric.update(1) if dist >= 0.6 else metric.update(0)
+            std, mean = torch.std_mean(metric.compute())
+            print(f"BLEU mean: {mean.item()}, std: {std.item()}")
+            
 
     @staticmethod
     def save_to_csv(path, results, triggers):
