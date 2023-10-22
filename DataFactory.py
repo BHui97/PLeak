@@ -12,6 +12,7 @@ class DataFactory():
         self._register_alias('Awesome', Awesome)
         self._register_alias('SQuAD', SQuAD)
         self._register_alias('SIQA', SIQA)
+        self._register_alias('Roles', Roles)
 
     def _register_alias(self, name, creator):
         self._creator[name] = creator
