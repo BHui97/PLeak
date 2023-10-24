@@ -12,7 +12,7 @@ from util.data import *
 import os
 
 test_num = 1000
-dataset = 'Financial_1_shot'
+dataset = 'SIQA'
 
 target_model = 'gptj'
 model = 'baseline'

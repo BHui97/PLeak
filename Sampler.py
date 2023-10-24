@@ -34,7 +34,6 @@ class Sampler():
                         gt = self.model.generate(target_tokens.input_ids, max_length = target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                     else:
                         gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=1)
-                    import ipdb;ipdb.set_trace()
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
                     results.append({'context': target_text, triggers:generation})

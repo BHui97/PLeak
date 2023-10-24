@@ -1,5 +1,6 @@
 import torch
-import numpy as np from copy import deepcopy
+import numpy as np
+from copy import deepcopy
 import re
 from util.template import TextTemplate
 from torchmetrics import ExtendedEditDistance, CatMetric
@@ -49,7 +50,7 @@ class HotFlip:
         encoded_target_text = self.tokenizer.encode(target_text)
         encoded_trigger_prefix = self.tokenizer.encode(self.template.prefix_trigger)
         encoded_splash_n = self.tokenizer.encode('\n')
-        encoded_user_prefix = self.tokenized.encode(self.user_prefix)
+        encoded_user_prefix = self.tokenizer.encode(self.user_prefix)
         if self.target_model == 'opt' or self.target_model == 'llama' or self.target_model=='vicuna': 
             encoded_target = encoded_target_text[1:]
             encoded_trigger_prefix = encoded_trigger_prefix[1:]
