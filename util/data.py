@@ -27,7 +27,7 @@ class Financial(Dataset):
 
 class Financial_few_shots(Financial):
     def __init__(self, train, num=16, num_shots=2, prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Financial_3_shot, self).__init__(train, num=num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
+        super(Financial_few_shots, self).__init__(train, num=num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
 
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
@@ -40,7 +40,7 @@ class Financial_few_shots(Financial):
         return len(self.dataset)//self.num_shots
 
 
-class Tomatoes_1_shot(Dataset):
+class Tomatoes(Dataset):
     def __init__(self, train, num=16,  prefix_1='text:', prefix_2='label:', with_instruction=True):
         dataset = load_dataset("rotten_tomatoes")
         self.dataset = random.choices(dataset["train"], k=num*num_shots)
@@ -64,7 +64,7 @@ class Tomatoes_1_shot(Dataset):
 
 class Tomatoes_few_shots(Financial):
     def __init__(self, train, num=16, num_shots=2,  prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Tomatoes_3_shot, self).__init__(train, num=num*num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
+        super(Tomatoes_few_shots, self).__init__(train, num=num*num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
 
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''

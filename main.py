@@ -16,10 +16,10 @@ torch.random.manual_seed(0)
 torch.cuda.manual_seed(0)
 
 
-train_num = 32
+train_num = 8
 test_num = 1000
 dataset = sys.argv[1]
-token_length = 16
+token_length = 20
 dataFactory = DataFactory()
 trainset = dataFactory.get_dataset(dataset, train=True, num=train_num)
 testset = dataFactory.get_dataset(dataset, train=False, num=test_num)
@@ -37,7 +37,7 @@ torch.cuda.empty_cache()
 sampler = Sampler(target_model=model, template=testset.template)
 results = sampler.sample_sequence(testset, triggers=triggers)
 # results = sampler.sample_sequence(testset, triggers='')
-Sampler.save_to_csv(f'results/{target_model}_{dataset}_{model}_{token_length}.csv', results, triggers)
+Sampler.save_to_csv(f'results/{target_model}_{dataset}_{train_num}_{model}_{token_length}.csv', results, triggers)
 
 sampler.evaluate(results, level='em')
 sampler.evaluate(results, level='edit')
