@@ -85,7 +85,7 @@ class Sampler():
                 target_text = result[keys[0]]
                 target = self.filter_tokens(target_text)
                 pred = self.filter_tokens(result[keys[1]])
-                if target in pred: 
+                if target == pred: 
                     metric.update(1)
                 else: 
                     metric.update(0)

@@ -79,9 +79,9 @@ class HotFlip:
         for index, text in enumerate(target_texts):
             lm_input, label = self.make_target(index, idx_loss, text, trigger_tokens) 
             loss = self.model(lm_input, labels=label)[0]/len(target_texts)
-            total_loss += loss.item()
             if require_grad:
                 loss.backward()
+            total_loss += loss.item()
         return total_loss
 
     def hotflip_attack(self, averaged_grad, increase_loss=False, num_candidates=30):

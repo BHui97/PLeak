@@ -5,10 +5,10 @@ from util.data import *
 class DataFactory():
     def __init__(self):
         self._creator = {}
-        self._register_alias('Financial_1_shot', Financial_1_shot)
-        self._register_alias('Financial_3_shot', Financial_3_shot)
-        self._register_alias('Tomatoes_1_shot', Tomatoes_1_shot)
-        self._register_alias('Tomatoes_3_shot', Tomatoes_3_shot)
+        self._register_alias('Financial', Financial)
+        self._register_alias('Financial_few_shots', Financial_few_shots)
+        self._register_alias('Tomatoes', Tomatoes)
+        self._register_alias('Tomatoes_few_shots', Tomatoes_few_shots)
         self._register_alias('Awesome', Awesome)
         self._register_alias('SQuAD', SQuAD)
         self._register_alias('SIQA', SIQA)

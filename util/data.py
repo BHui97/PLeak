@@ -3,7 +3,7 @@ from datasets import load_dataset
 from util.template import TextTemplate
 import random
 
-class Financial_1_shot(Dataset):
+class Financial(Dataset):
     def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num)
@@ -25,14 +25,14 @@ class Financial_1_shot(Dataset):
         return len(self.dataset)
 
 
-class Financial_3_shot(Financial_1_shot):
-    def __init__(self, train, num=16, prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Financial_3_shot, self).__init__(train, num=num, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
+class Financial_few_shots(Financial):
+    def __init__(self, train, num=16, num_shots=2, prefix_1='text:', prefix_2='label:',with_instruction=True):
+        super(Financial_3_shot, self).__init__(train, num=num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
 
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        for i in range(3):
-            ret += self.template(self.dataset[idx*3+i]['sentence'], self.label[self.dataset[idx*3+i]['label']])
+        for i in range(num_shots):
+            ret += self.template(self.dataset[idx*num_shots+i]['sentence'], self.label[self.dataset[idx*num_shots+i]['label']])
 
         return ret
 
@@ -62,14 +62,14 @@ class Tomatoes_1_shot(Dataset):
 
 
 
-class Tomatoes_3_shot(Financial_1_shot):
-    def __init__(self, train, num=16, prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Tomatoes_3_shot, self).__init__(train, num=num, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
+class Tomatoes_few_shots(Financial):
+    def __init__(self, train, num=16, num_shots=2,  prefix_1='text:', prefix_2='label:',with_instruction=True):
+        super(Tomatoes_3_shot, self).__init__(train, num=num*num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
 
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        for i in range(3):
-            ret += self.template(self.dataset[idx*3+i]['text'], self.label[self.dataset[idx*3+i]['label']])
+        for i in range(num_shots):
+            ret += self.template(self.dataset[idx*num_shots+i]['text'], self.label[self.dataset[idx*_num_shots+i]['label']])
 
         return ret
 

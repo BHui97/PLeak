@@ -16,10 +16,10 @@ torch.random.manual_seed(0)
 torch.cuda.manual_seed(0)
 
 
-train_num = 16
+train_num = 32
 test_num = 1000
 dataset = sys.argv[1]
-token_length = 24
+token_length = 16
 dataFactory = DataFactory()
 trainset = dataFactory.get_dataset(dataset, train=True, num=train_num)
 testset = dataFactory.get_dataset(dataset, train=False, num=test_num)
