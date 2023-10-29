@@ -1,4 +1,3 @@
-from attack import HotFlip
 import torch
 import csv
 from torchmetrics import ExtendedEditDistance, CatMetric
@@ -58,7 +57,7 @@ def evaluate(results, level='char'):
         print(f"semantic mean: {mean.item()}, std: {std.item()}")
 
 results = []
-with open('results/falcon_Financial_baseline_1.csv', mode ='r') as file:    
+with open('results/llama_Tomatoes_baseline_1.csv', mode ='r') as file:    
     csvFile = csv.DictReader(file)
                 
     for lines in csvFile:

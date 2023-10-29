@@ -7,6 +7,8 @@ class ModelFactory():
         self._register_model_config('gptj', 'EleutherAI/gpt-j-6b', 50400)
         self._register_model_config('opt', 'facebook/opt-6.7B', 50272)
         self._register_model_config('llama', 'meta-llama/Llama-2-7b-hf', 32000)
+        self._register_model_config('llama', 'meta-llama/Llama-2-7b-hf', 32000)
+        self._register_model_config('llama-70b', 'meta-llama/Llama-2-70b-chat-hf', 32000)
         self._register_model_config('falcon', 'tiiuae/falcon-7b', 65024)
 
     def _register_model_config(self, name, alias, vocab_size):
