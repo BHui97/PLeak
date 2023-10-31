@@ -21,6 +21,3 @@ class DataFactory():
             name = name[0]
         creator = self._creator.get(name)
         return creator(**kwargs)
-
-fac = DataFactory()
-import ipdb;ipdb.set_trace()
