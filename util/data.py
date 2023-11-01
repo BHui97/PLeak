@@ -14,10 +14,12 @@ class Financial(Dataset):
         self.instruction_prefix = "instruction:"
         instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
         self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
-    
+        self.num_shots = num_shots
+
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        ret += self.template(self.dataset[idx]['sentence'], self.label[self.dataset[idx]['label']])
+        for i in range(self.num_shots):
+            ret += self.template(self.dataset[idx*self.num_shots+i]['sentence'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 
         return ret
 
@@ -25,23 +27,8 @@ class Financial(Dataset):
         return len(self.dataset)
 
 
-class Financial_few_shots(Financial):
-    def __init__(self, train, num=16, num_shots=2, prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Financial_few_shots, self).__init__(train, num=num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
-
-    def __getitem__(self, idx):
-        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        for i in range(num_shots):
-            ret += self.template(self.dataset[idx*num_shots+i]['sentence'], self.label[self.dataset[idx*num_shots+i]['label']])
-
-        return ret
-
-    def __len__(self):
-        return len(self.dataset)//self.num_shots
-
-
 class Tomatoes(Dataset):
-    def __init__(self, train, num=16,  prefix_1='text:', prefix_2='label:', with_instruction=True):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:', with_instruction=True):
         dataset = load_dataset("rotten_tomatoes")
         self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.label = ['Negative', 'Positive']
@@ -50,31 +37,17 @@ class Tomatoes(Dataset):
         self.instruction_prefix = "instruction:"
         instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
         self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
-    
+        self.num_shots = num_shots
+
     def __getitem__(self, idx):
         ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        ret += self.template(self.dataset[idx]['text'], self.label[self.dataset[idx]['label']])
+        for i in range(self.num_shots):
+            ret += self.template(self.dataset[idx*self.num_shots+i]['text'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 
         return ret
-
+    
     def __len__(self):
         return len(self.dataset)
-
-
-
-class Tomatoes_few_shots(Financial):
-    def __init__(self, train, num=16, num_shots=2,  prefix_1='text:', prefix_2='label:',with_instruction=True):
-        super(Tomatoes_few_shots, self).__init__(train, num=num*num_shots, prefix_1=prefix_1, prefix_2=prefix_2, with_instruction=with_instruction)
-
-    def __getitem__(self, idx):
-        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
-        for i in range(num_shots):
-            ret += self.template(self.dataset[idx*num_shots+i]['text'], self.label[self.dataset[idx*_num_shots+i]['label']])
-
-        return ret
-
-    def __len__(self):
-        return len(self.dataset)//self.num_shots
 
 
 class SQuAD(Dataset):
