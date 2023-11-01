@@ -33,7 +33,7 @@ class Sampler():
                     if self.target_model == 'falcon':
                         gt = self.model.generate(target_tokens.input_ids, max_length = target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                     else:
-                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=1)
+                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
                     results.append({'context': target_text, triggers:generation})
@@ -46,20 +46,21 @@ class Sampler():
     def postprocess(self, text, triggers):
         ret = text
         sentences = []
-        sentences_filtered = [self.sentence_to_char(self.template.format_trigger(triggers))]
-        for t in text.split('\n'):
+        sentences_filtered = [self.sentence_to_char(self.template.format_trigger(triggers)), self.sentence_to_char('text:'+triggers)]
+        text.replace('.', '\n')
+        for t in text.split('\n')[:-1]:
             t_filtered = self.sentence_to_char(t.replace(self.template.prefix_trigger, ''))
             if t_filtered == '':continue
             if t_filtered not in sentences_filtered and t_filtered != '':
-                if t_filtered in  ''.join(sentences_filtered): continue
+                if t_filtered in  ''.join(sentences_filtered): break
                 sentences_filtered.append(t_filtered)
                 sentences.append(t)
-            else: break
+            # else: break
         if len(sentences)==0:
             ret = text.split('\n')
             ret = ret[1] if len(ret) > 1 else ret[0]
         else:
-            ret = ''.join(sentences)
+            ret = '.'.join(sentences)+'.'
         ret = ret.replace(self.tokenizer.eos_token, '')
         return ret
 
@@ -88,6 +89,7 @@ class Sampler():
                 if target == pred: 
                     metric.update(1)
                 else: 
+                    # import ipdb;ipdb.set_trace()
                     metric.update(0)
                 mean = torch.mean(metric.compute())
             print(f"em Acc: {mean.item()}")
