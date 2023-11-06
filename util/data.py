@@ -13,11 +13,11 @@ class Financial(Dataset):
         self.with_instruction = with_instruction
         self.instruction_prefix = "instruction:"
         instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
-        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
+        self.instructions = random.choices(load_dataset("csv", data_files=instruction_files)['train']['prompts'], k=num)
         self.num_shots = num_shots
 
     def __getitem__(self, idx):
-        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
+        ret = self.instruction_prefix + self.instructions[idx] + "\n\n" if self.with_instruction else ''
         for i in range(self.num_shots):
             ret += self.template(self.dataset[idx*self.num_shots+i]['sentence'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 
@@ -36,11 +36,11 @@ class Tomatoes(Dataset):
         self.with_instruction = with_instruction
         self.instruction_prefix = "instruction:"
         instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
-        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
         self.num_shots = num_shots
+        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
 
     def __getitem__(self, idx):
-        ret = self.instruction_prefix + random.choices(self.instructions, k=1)[0] + "\n\n" if self.with_instruction else ''
+        ret = self.instruction_prefix + self.instructions[idx] + "\n\n" if self.with_instruction else ''
         for i in range(self.num_shots):
             ret += self.template(self.dataset[idx*self.num_shots+i]['text'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 
