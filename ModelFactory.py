@@ -7,7 +7,6 @@ class ModelFactory():
         self._register_model_config('gptj', 'EleutherAI/gpt-j-6b', 50400)
         self._register_model_config('opt', 'facebook/opt-6.7B', 50272)
         self._register_model_config('llama', 'meta-llama/Llama-2-7b-hf', 32000)
-        self._register_model_config('llama', 'meta-llama/Llama-2-7b-hf', 32000)
         self._register_model_config('llama-70b', 'meta-llama/Llama-2-70b-chat-hf', 32000)
         self._register_model_config('falcon', 'tiiuae/falcon-7b', 65024)
 
@@ -22,8 +21,4 @@ class ModelFactory():
         return AutoTokenizer.from_pretrained(self.MODEL_CONF[name]['alias'])
 
     def get_model(self, name):
-        quant_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16,
-                                          bnb_4bit_use_double_quant=True, bnb_4bit_quant_type='nf4')
-
-        return AutoModelForCausalLM.from_pretrained(self.MODEL_CONF[name]['alias'], device_map="auto", load_in_4bit=True,
-                                                    torch_dtype=torch.bfloat16, quantization_config=quant_config).eval()
+        return AutoModelForCausalLM.from_pretrained(self.MODEL_CONF[name]['alias'], device_map="auto", load_in_8bit=True, torch_dtype = torch.bfloat16)

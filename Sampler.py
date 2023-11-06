@@ -33,12 +33,12 @@ class Sampler():
                     if self.target_model == 'falcon':
                         gt = self.model.generate(target_tokens.input_ids, max_length = target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
                     else:
-                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=1)
+                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3, temperature=0.9, top_p=0.6)
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
                     results.append({'context': target_text, triggers:generation})
                     print(f'{idx=}\n{text=}\n{generation=}')
-                    self.evaluate([{'context': target_text, triggers:generation}])
+                    self.evaluate([{'context': target_text, triggers:generation}], level='substring')
                 except RuntimeError as err:
                     print(f'{idx:} skip')
         return results
@@ -91,6 +91,19 @@ class Sampler():
                     metric.update(0)
                 mean = torch.mean(metric.compute())
             print(f"em Acc: {mean.item()}")
+            return metric.compute()
+        elif level == 'substring':
+            for result in results:
+                target_text = result[keys[0]]
+                target = self.filter_tokens(target_text)
+                pred = self.filter_tokens(result[keys[1]])
+                if target in pred: 
+                    metric.update(1)
+                else: 
+                    metric.update(0)
+                mean = torch.mean(metric.compute())
+            print(f"s Acc: {mean.item()}")
+            return metric.compute()
         elif level == 'edit':
             EDD = ExtendedEditDistance()
             for result in results:
@@ -99,6 +112,7 @@ class Sampler():
                 metric.update(dist)
             std, mean = torch.std_mean(metric.compute())
             print(f"edit distance mean: {mean.item()}, std: {std.item()}")
+            return metric.compute()
         elif level == 'semantic':
             from sentence_transformers import SentenceTransformer, util
             model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
@@ -111,6 +125,7 @@ class Sampler():
                 metric.update(sim.to('cpu'))
             std, mean = torch.std_mean(metric.compute())
             print(f"semantic mean: {mean.item()}, std: {std.item()}")
+            return metric.compute()
         elif level == 'bleu':
             for result in results:
                 target_text = result[keys[0]]
