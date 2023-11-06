@@ -21,4 +21,4 @@ class ModelFactory():
         return AutoTokenizer.from_pretrained(self.MODEL_CONF[name]['alias'])
 
     def get_model(self, name):
-        return AutoModelForCausalLM.from_pretrained(self.MODEL_CONF[name]['alias'], device_map="auto", load_in_8bit=True, torch_dtype = torch.bfloat16)
+        return AutoModelForCausalLM.from_pretrained(self.MODEL_CONF[name]['alias'], device_map="auto", load_in_8bit=True, torch_dtype = torch.bfloat16).eval()
