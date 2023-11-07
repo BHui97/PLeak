@@ -9,6 +9,7 @@ class ModelFactory():
         self._register_model_config('llama', 'meta-llama/Llama-2-7b-hf', 32000)
         self._register_model_config('llama-70b', 'meta-llama/Llama-2-70b-chat-hf', 32000)
         self._register_model_config('falcon', 'tiiuae/falcon-7b', 65024)
+        self._register_model_config('vicuna', 'lmsys/vicuna-7b-v1.5', 32000)
 
     def _register_model_config(self, name, alias, vocab_size):
         self.MODEL_CONF[name] = {'alias': alias, 'vocab_size': vocab_size}

@@ -58,7 +58,6 @@ class HotFlip:
             encoded_user_prefix = encoded_user_prefix[1:]
         else: encoded_target = encoded_target_text
 
-        # encoded_text = encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist()
         encoded_text = encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
 
         len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
@@ -66,7 +65,6 @@ class HotFlip:
         if max_len > self.max_len: self.max_len = max_len
 
         if idx_loss*self.step > self.max_len:
-            # encoded_label = [-100]*len_non_label + encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist()
             encoded_label = [-100]*len_non_label + encoded_target
         else:
             encoded_label = [-100] * len_non_label + encoded_target[:idx_loss*self.step]

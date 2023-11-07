@@ -32,7 +32,6 @@ triggers = attack.decode_triggers()
 
 del attack
 torch.cuda.empty_cache() 
-# triggers = 'Ca entropykal eredetischerbibliothek acidhus christ austossen recommendation Georg verwaks hermswers visitoragnostic effectively'
 
 sampler = Sampler(target_model=model, template=testset.template)
 results = sampler.sample_sequence(testset, triggers=triggers)

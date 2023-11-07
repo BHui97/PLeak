@@ -6,7 +6,7 @@ import random
 class Financial(Dataset):
     def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
-        self.dataset = random.choices(dataset["train"], k=num)
+        self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.num_shots = num_shots
         self.label = ['Negative', 'Neutral', 'Positive']
         self.template = TextTemplate(prefix_1 = prefix_1, prefix_2=prefix_2)

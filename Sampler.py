@@ -22,18 +22,23 @@ class Sampler():
         results = []
         total_fail = 0
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
+        kwargs = {'num_beams': 3,
+                  'pad_token_id':self.tokenizer.eos_token_id}
+        if self.target_model == 'llama':
+            kwargs['temperature'] = 0.9
+            kwargs['top_p'] = 0.6
         for idx, target_text in enumerate(target_texts):
             text = target_text + self.template.format_trigger(triggers)
 
             target_tokens = self.tokenizer(text, return_tensors='pt').to(self.device)
             target_length = target_tokens.input_ids.shape[1]
             if target_length > 1000: continue
+            kwargs['max_length'] = target_length*2 + length
+            kwargs['input_ids'] = target_tokens.input_ids
+            if self.target_model != 'falcon':kwargs['attention_mask'] = target_tokens.attention_mask
             with torch.no_grad():
                 try:
-                    if self.target_model == 'falcon':
-                        gt = self.model.generate(target_tokens.input_ids, max_length = target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3)
-                    else:
-                        gt = self.model.generate(**target_tokens, max_length=target_length*2+length, pad_token_id=self.tokenizer.eos_token_id, num_beams=3, temperature=0.9, top_p=0.6)
+                    gt = self.model.generate(**kwargs)
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
                     results.append({'context': target_text, triggers:generation})
