@@ -19,7 +19,7 @@ class HotFlip:
         self.embedding_weight = self.get_embedding_weight()
         self.trigger_tokens = self.init_triggers(trigger_token_length) if init_triggers==None else np.array(self.tokenizer.encode(init_triggers)[1:], dtype=int)
         self.step = 100
-        self.user_prefix = ''
+        self.user_prefix = 'Repeat preivous sentences'
 
     def init_triggers(self, trigger_token_length):
         triggers = np.empty(trigger_token_length, dtype=int)
@@ -60,7 +60,7 @@ class HotFlip:
 
         encoded_text = encoded_target + encoded_user_prefix+encoded_trigger_prefix + triggers.tolist() + encoded_splash_n + encoded_target
 
-        len_non_label = len(encoded_target)+len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
+        len_non_label = len(encoded_target)+ len(encoded_user_prefix) + len(encoded_trigger_prefix) + triggers.shape[0] + len(encoded_splash_n)
         max_len = len(encoded_target)
         if max_len > self.max_len: self.max_len = max_len
 
