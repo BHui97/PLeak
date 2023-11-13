@@ -25,8 +25,9 @@ class Sampler():
         kwargs = {'num_beams': 3,
                   'pad_token_id':self.tokenizer.eos_token_id}
         if self.target_model == 'llama':
-            kwargs['temperature'] = 0.9
-            kwargs['top_p'] = 0.6
+            kwargs['do_sample'] = False
+            kwargs['temperature'] = 1.0
+            kwargs['top_p'] = 1.0
         for idx, target_text in enumerate(target_texts):
             text = target_text + self.template.format_trigger(triggers)
 

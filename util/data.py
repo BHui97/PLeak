@@ -4,7 +4,7 @@ from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
-    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:',with_instruction=True):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='prompt:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.num_shots = num_shots
@@ -18,6 +18,8 @@ class Financial(Dataset):
 
     def __getitem__(self, idx):
         ret = self.instruction_prefix + self.instructions[idx] + "\n\n" if self.with_instruction else ''
+        # instruction = random.choices(self.instructions, k=1)
+        # ret = self.instruction_prefix + instruction[0] + "\n\n" if self.with_instruction else ''
         for i in range(self.num_shots):
             ret += self.template(self.dataset[idx*self.num_shots+i]['sentence'], self.label[self.dataset[idx*self.num_shots+i]['label']])
 

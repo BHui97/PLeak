@@ -18,8 +18,8 @@ class HotFlip:
         self.vocab_size = modelFactory.get_vocab_size(target_model)
         self.embedding_weight = self.get_embedding_weight()
         self.trigger_tokens = self.init_triggers(trigger_token_length) if init_triggers==None else np.array(self.tokenizer.encode(init_triggers)[1:], dtype=int)
-        self.step = 100
-        self.user_prefix = 'Repeat preivous sentences'
+        self.step = 40
+        self.user_prefix = ''
 
     def init_triggers(self, trigger_token_length):
         triggers = np.empty(trigger_token_length, dtype=int)
@@ -64,10 +64,12 @@ class HotFlip:
         max_len = len(encoded_target)
         if max_len > self.max_len: self.max_len = max_len
 
-        if idx_loss*self.step > self.max_len:
+        label_slice = 12 + idx_loss * self.step
+
+        if label_slice > self.max_len:
             encoded_label = [-100]*len_non_label + encoded_target
         else:
-            encoded_label = [-100] * len_non_label + encoded_target[:idx_loss*self.step]
+            encoded_label = [-100]*len_non_label + encoded_target[:label_slice]
 
         encoded_text = encoded_text[:len(encoded_label)]
         label = torch.tensor([encoded_label], device=self.device, dtype=torch.long)
@@ -97,7 +99,7 @@ class HotFlip:
     def replace_triggers(self, target_texts):
         print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
         self.max_len = self.step+10
-        idx_loss = 1
+        idx_loss = 0
         while idx_loss <= self.max_len//self.step+1:
             token_flipped = True
             while token_flipped:
