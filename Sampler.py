@@ -36,7 +36,6 @@ class Sampler():
             if target_length > 1000: continue
             kwargs['max_length'] = target_length*2 + length
             kwargs['input_ids'] = target_tokens.input_ids
-            if self.target_model != 'falcon':kwargs['attention_mask'] = target_tokens.attention_mask
             with torch.no_grad():
                 try:
                     gt = self.model.generate(**kwargs)

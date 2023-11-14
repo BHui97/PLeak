@@ -8,7 +8,7 @@ from util.data import Harmful
 from ModelFactory import ModelFactory
 
 class HotFlip:
-    def __init__(self, trigger_token_length=6, target_model='gpt2', template=None, init_triggers=None):
+    def __init__(self, trigger_token_length=6, target_model='gpt2', template=None, init_triggers=None, init_step=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
         self.template = TextTemplate(prefix_1='') if template is None else template
@@ -18,7 +18,8 @@ class HotFlip:
         self.vocab_size = modelFactory.get_vocab_size(target_model)
         self.embedding_weight = self.get_embedding_weight()
         self.trigger_tokens = self.init_triggers(trigger_token_length) if init_triggers==None else np.array(self.tokenizer.encode(init_triggers)[1:], dtype=int)
-        self.step = 40
+        self.step = 80
+        self.init_step = init_step if init_step is not None else self.step
         self.user_prefix = ''
 
     def init_triggers(self, trigger_token_length):
@@ -64,7 +65,7 @@ class HotFlip:
         max_len = len(encoded_target)
         if max_len > self.max_len: self.max_len = max_len
 
-        label_slice = 12 + idx_loss * self.step
+        label_slice = self.init_step + idx_loss * self.step
 
         if label_slice > self.max_len:
             encoded_label = [-100]*len_non_label + encoded_target
@@ -100,7 +101,7 @@ class HotFlip:
         print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
         self.max_len = self.step+10
         idx_loss = 0
-        while idx_loss <= self.max_len//self.step+1:
+        while idx_loss <= self.max_len//self.step:
             token_flipped = True
             while token_flipped:
                 token_flipped = False
