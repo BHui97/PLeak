@@ -8,7 +8,7 @@ from util.data import Harmful
 from ModelFactory import ModelFactory
 
 class HotFlip:
-    def __init__(self, trigger_token_length=6, target_model='gpt2', template=None, init_triggers=None, init_step=None):
+    def __init__(self, trigger_token_length=6, target_model='gpt2', step=10, template=None, init_triggers='', init_step=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
         self.template = TextTemplate(prefix_1='') if template is None else template
@@ -17,18 +17,27 @@ class HotFlip:
         self.tokenizer = modelFactory.get_tokenizer(target_model)
         self.vocab_size = modelFactory.get_vocab_size(target_model)
         self.embedding_weight = self.get_embedding_weight()
-        self.trigger_tokens = self.init_triggers(trigger_token_length) if init_triggers==None else np.array(self.tokenizer.encode(init_triggers)[1:], dtype=int)
-        self.step = 80
+        self.step = step
         self.init_step = init_step if init_step is not None else self.step
         self.user_prefix = ''
+        self.trigger_tokens = self.init_triggers(trigger_token_length, init_triggers, self.user_prefix)
 
-    def init_triggers(self, trigger_token_length):
-        triggers = np.empty(trigger_token_length, dtype=int)
+    def init_triggers(self, trigger_token_length, init_trigger='', user_prefix=''):
+        init_tokens = self.tokenizer.encode(init_trigger)
+        len_init = len(init_tokens)
+        len_user = len(self.tokenizer.encode(user_prefix))
+        if self.target_model == 'opt' or self.target_model == 'llama' or self.target_model=='vicuna': 
+            len_init -= 1
+            len_user -= 1
+        triggers = np.empty(trigger_token_length-len_user, dtype=int)
         for idx, t in enumerate(triggers):
-            t = np.random.randint(self.vocab_size)
-            while re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(t)):
+            if idx < len_init:
+                triggers[idx] = init_tokens[idx]
+            else:
                 t = np.random.randint(self.vocab_size)
-            triggers[idx] = t
+                while re.search("[^a-zA-Z0-9s\s]", self.tokenizer.decode(t)):
+                    t = np.random.randint(self.vocab_size)
+                triggers[idx] = t
         return triggers
 
     def get_embedding_weight(self):
@@ -98,7 +107,7 @@ class HotFlip:
         return best_k_ids.detach().squeeze().cpu().numpy()
 
     def replace_triggers(self, target_texts):
-        print(f"init_triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+        print(f"init_triggers:{self.decode_triggers()}")
         self.max_len = self.step+10
         idx_loss = 0
         while idx_loss <= self.max_len//self.step:
@@ -108,7 +117,7 @@ class HotFlip:
                 with torch.set_grad_enabled(True):
                     self.model.zero_grad()
                     best_loss = self.compute_loss(target_texts, self.trigger_tokens, idx_loss, require_grad=True)
-                print(f"current loss:{best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+                print(f"current loss:{best_loss}, triggers:{self.decode_triggers()}")
                 
                 
                 candidates = self.hotflip_attack(self.get_triggers_grad(), num_candidates=30)
@@ -126,7 +135,7 @@ class HotFlip:
                         best_loss = loss
                         best_trigger_tokens = deepcopy(candidate_trigger_tokens)
                 self.trigger_tokens = deepcopy(best_trigger_tokens)
-                if token_flipped: print(f"Loss: {best_loss}, triggers:{self.tokenizer.decode(self.trigger_tokens)}")
+                if token_flipped: print(f"Loss: {best_loss}, triggers:{self.decode_triggers()}")
                 else: print(f"\nNo improvement, ending iteration")
             idx_loss += 1
             print(f"Enter next iteration :{idx_loss}")
