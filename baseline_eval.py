@@ -26,14 +26,31 @@ def evaluate(results, level='char'):
         for result in results:
             target_text = result[keys[0]]
             target = filter_tokens(target_text)
-            text = ''
-            for i in range(1, 6): text+=result[keys[i]]
-            pred = filter_tokens(text)
-            if target == pred: 
-                metric.update(1)
-            else: 
-                metric.update(0)
-            mean = torch.mean(metric.compute())
+            dist = []
+            for i in range(1, 6): 
+                text=result[keys[i]]
+                pred = filter_tokens(text)
+                if target == pred: 
+                    dist.append(1)
+                else: 
+                    dist.append(0)
+            metric.update(max(dist))
+        mean = torch.mean(metric.compute())
+        print(f"em Acc: {mean.item()}")
+    elif level == 'substring':
+        for result in results:
+            target_text = result[keys[0]]
+            target = filter_tokens(target_text)
+            dist = []
+            for i in range(1, 6): 
+                text=result[keys[i]]
+                pred = filter_tokens(text)
+                if pred in target: 
+                    dist.append(1)
+                else: 
+                    dist.append(0)
+            metric.update(max(dist))
+        mean = torch.mean(metric.compute())
         print(f"em Acc: {mean.item()}")
     elif level == 'edit':
         EDD = ExtendedEditDistance()
@@ -56,12 +73,12 @@ def evaluate(results, level='char'):
         std, mean = torch.std_mean(metric.compute())
         print(f"semantic mean: {mean.item()}, std: {std.item()}")
 
-results = []
-with open('results/llama_Tomatoes_baseline_1.csv', mode ='r') as file:    
-    csvFile = csv.DictReader(file)
+# results = []
+# with open('results/llama_Tomatoes_baseline_1.csv', mode ='r') as file:    
+#     csvFile = csv.DictReader(file)
                 
-    for lines in csvFile:
-        results.append(lines)
-evaluate(results, level='em')
-evaluate(results, level='edit')
-evaluate(results, level='semantic')
+#     for lines in csvFile:
+#         results.append(lines)
+# evaluate(results, level='em')
+# evaluate(results, level='edit')
+# evaluate(results, level='semantic')
