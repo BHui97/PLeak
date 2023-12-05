@@ -6,17 +6,20 @@ from torchmetrics.text import BLEUScore
 from torchmetrics.functional.text import bleu_score
 from util.template import TextTemplate
 import re
+from Defense import Defense
 from nltk import pos_tag, word_tokenize
 
 
 class Sampler():
-    def __init__(self, target_model='gptj', template=None):
+    def __init__(self, target_model='gptj', template=None, defense='filter'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
         self.template = TextTemplate(prefix_1='') if template is None else template
         modelFactory = ModelFactory()
         self.model = modelFactory.get_model(target_model)
         self.tokenizer = modelFactory.get_tokenizer(target_model)
+        self.defender = Defense()
+        self.defense = defense
 
     def sample_sequence(self, target_texts, triggers, length=50):
         results = []
@@ -38,6 +41,7 @@ class Sampler():
                     gt = self.model.generate(**kwargs)
                     generation = self.tokenizer.decode(gt[0, target_length:])
                     generation = self.postprocess(generation, triggers)
+                    generation = self.defender.defend(self.defense, target=target_text, output=generation)
                     results.append({'context': target_text, triggers:generation})
                     print(f'{idx=}\n{text=}\n{generation=}')
                     self.evaluate([{'context': target_text, triggers:generation}], level='substring')

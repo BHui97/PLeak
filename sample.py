@@ -17,13 +17,14 @@ torch.cuda.manual_seed(0)
 
 dataset = sys.argv[1]
 model = sys.argv[2]
-triggers = sys.argv[3]
+defense = sys.argv[3]
+triggers = sys.argv[4]
 test_num = 1000
 
 dataFactory = DataFactory()
 testset = dataFactory.get_dataset(dataset, train=False, num=test_num)
 
-sampler = Sampler(target_model=model, template=testset.template)
+sampler = Sampler(target_model=model, template=testset.template, defense=defense)
 results = sampler.sample_sequence(testset, triggers=triggers)
 Sampler.save_to_csv(f'results/{dataset}_{model}_{triggers}.csv', results, triggers)
 
