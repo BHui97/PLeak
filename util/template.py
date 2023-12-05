@@ -3,6 +3,7 @@ class TextTemplate:
         self.prefix_1 = prefix_1
         self.prefix_2 = prefix_2
         self.prefix_trigger = '' if prefix_2 is None else self.prefix_1
+        # self.prefix_trigger = ''
 
     def __call__(self, input_1=None, input_2=None):
         ret = self.prefix_1 + input_1
@@ -12,7 +13,8 @@ class TextTemplate:
             return ret + ' ' + self.prefix_2 + input_2 + '\n'
     
     def format_trigger(self, trigger):
-        return self.prefix_trigger + trigger + '\n'
+        return self.prefix_trigger + trigger +'\n'
+        # return self.prefix_trigger + '\'\'\n'+trigger + '\'\'\n'
 
 
 

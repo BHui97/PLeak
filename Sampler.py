@@ -24,16 +24,13 @@ class Sampler():
         if triggers is None: triggers = self.tokenizer.decode(self.trigger_tokens)
         kwargs = {'num_beams': 3,
                   'pad_token_id':self.tokenizer.eos_token_id}
-        if self.target_model == 'llama':
-            kwargs['do_sample'] = False
-            kwargs['temperature'] = 1.0
-            kwargs['top_p'] = 1.0
+        if 'llama' in self.target_model:
+            kwargs['temperature'] = 0.9
+            kwargs['top_p'] = 0.6
         for idx, target_text in enumerate(target_texts):
             text = target_text + self.template.format_trigger(triggers)
-
             target_tokens = self.tokenizer(text, return_tensors='pt').to(self.device)
             target_length = target_tokens.input_ids.shape[1]
-            if target_length > 1000: continue
             kwargs['max_length'] = target_length*2 + length
             kwargs['input_ids'] = target_tokens.input_ids
             with torch.no_grad():
@@ -60,7 +57,6 @@ class Sampler():
                 if t_filtered in  ''.join(sentences_filtered): break
                 sentences_filtered.append(t_filtered)
                 sentences.append(t)
-            # else: break
         if len(sentences)==0:
             ret = text.split('\n')
             ret = ret[1] if len(ret) > 1 else ret[0]
@@ -79,7 +75,7 @@ class Sampler():
     
     def filter_tokens(self, sentence):
         ret_sentence = re.sub('[^a-zA-Z]', ' ', sentence.lower())
-        filtered_sentence = ''.join(self.sentence_to_tokens(ret_sentence))
+        filtered_sentence = ''.join(self.sentence_to_char(ret_sentence))
 
         return filtered_sentence
 
@@ -100,7 +96,7 @@ class Sampler():
             print(f"em Acc: {mean.item()}")
             return metric.compute()
         elif level == 'substring':
-            for result in results:
+            for i, result in enumerate(results):
                 target_text = result[keys[0]]
                 target = self.filter_tokens(target_text)
                 pred = self.filter_tokens(result[keys[1]])

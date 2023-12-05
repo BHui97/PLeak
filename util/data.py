@@ -4,7 +4,7 @@ from util.template import TextTemplate
 import random
 
 class Financial(Dataset):
-    def __init__(self, train, num=16, num_shots=1, prefix_1='prompt:', prefix_2='label:',with_instruction=True):
+    def __init__(self, train, num=16, num_shots=1, prefix_1='text:', prefix_2='label:',with_instruction=True):
         dataset = load_dataset("financial_phrasebank","sentences_allagree")
         self.dataset = random.choices(dataset["train"], k=num*num_shots)
         self.num_shots = num_shots
@@ -39,8 +39,8 @@ class Tomatoes(Dataset):
         self.instruction_prefix = "instruction:"
         instruction_files = "util/instruction.csv" if train else "util/instruction_attack.csv"
         self.num_shots = num_shots
-        self.instructions = load_dataset("csv", data_files=instruction_files)['train']['prompts']
-
+        self.instructions = random.choices(load_dataset("csv", data_files=instruction_files)['train']['prompts'], k=num)
+        self.num_shots = num_shots
     def __getitem__(self, idx):
         ret = self.instruction_prefix + self.instructions[idx] + "\n\n" if self.with_instruction else ''
         for i in range(self.num_shots):
