@@ -131,7 +131,7 @@ class HotFlip:
     def compute_loss(self, target_texts, trigger_tokens, idx_loss,  require_grad=False):
         total_loss = 0
         for index, text in enumerate(target_texts):
-            lm_input, label = self.make_target_chat(index, idx_loss, text, trigger_tokens) 
+            lm_input, label = self.make_target(index, idx_loss, text, trigger_tokens) 
             loss = self.model(lm_input, labels=label)[0]/len(target_texts)
             if require_grad:
                 loss.backward()

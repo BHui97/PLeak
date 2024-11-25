@@ -11,7 +11,7 @@ from nltk import pos_tag, word_tokenize
 
 
 class Sampler():
-    def __init__(self, target_model='gptj', template=None, defense='filter'):
+    def __init__(self, target_model='gptj', template=None, defense='None'):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
         self.template = TextTemplate(prefix_1='') if template is None else template
@@ -20,6 +20,8 @@ class Sampler():
         self.tokenizer = modelFactory.get_tokenizer(target_model)
         self.defender = Defense()
         self.defense = defense
+        self.model_sim = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
 
     def sample_sequence(self, target_texts, triggers, length=50):
         results = []
@@ -28,6 +30,7 @@ class Sampler():
         kwargs = {'num_beams': 3,
                   'pad_token_id':self.tokenizer.eos_token_id}
         if 'llama' in self.target_model:
+            kwargs['do_sample'] = True
             kwargs['temperature'] = 0.9
             kwargs['top_p'] = 0.6
         for idx, target_text in enumerate(target_texts):
@@ -137,7 +140,6 @@ class Sampler():
             for result in results:
                 target_text = result[keys[0]]
                 dist = bleu_score([result[keys[1]]], [target_text])
-                # import ipdb;ipdb.set_trace()
                 metric.update(1) if dist >= 0.6 else metric.update(0)
             std, mean = torch.std_mean(metric.compute())
             print(f"BLEU mean: {mean.item()}, std: {std.item()}")
